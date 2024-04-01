@@ -55,8 +55,18 @@ def collate_fn(examples):
 
 dataset = Dataset.from_dict({"image_path": images})
 dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
-embeddings = np.zeros((num_images, model.config.hidden_size))
+
+# Determine the sequence length based on the first image
+with torch.no_grad():
+    first_batch = next(iter(dataloader))
+    first_outputs = model(**first_batch)
+    sequence_length = first_outputs.last_hidden_state.shape[1]
+
+# https://huggingface.co/facebook/dinov2-base/blob/main/config.json
+hidden_size = model.config.hidden_size
+embeddings = np.zeros((num_images, sequence_length, hidden_size), dtype=np.float32)
 print(f"Embeddings will be {embeddings.shape} of {embeddings.dtype}")
+
 for i, batch in enumerate(dataloader):
     start_time = time.time()
     print(f"Processing batch {i+1}/{len(dataloader)}...")
@@ -64,8 +74,8 @@ for i, batch in enumerate(dataloader):
         outputs = model(**batch)
     last_hidden_states = outputs.last_hidden_state
     start_index = i * args.batch_size
-    end_index = min((i + 1) * args.batch_size, num_images)
-    embeddings[start_index:end_index] = last_hidden_states.squeeze().cpu().numpy()
+    end_index = start_index + len(last_hidden_states)
+    embeddings[start_index:end_index] = last_hidden_states.cpu().numpy()
     print(f"\t... completed in {time.time()-start_time:.2f} seconds")
 
 embeddings_path = os.path.join(image_dir_path, f'{args.model}.npy')
