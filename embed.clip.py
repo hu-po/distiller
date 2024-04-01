@@ -1,9 +1,10 @@
+# https://huggingface.co/openai/clip-vit-large-patch14
 import argparse
 import os
 import pandas as pd
 from PIL import Image
 import time
-from transformers import CLIPProcessor, CLIPModel
+from transformers import AutoProcessor, CLIPVisionModel
 import torch
 from torch.utils.data import DataLoader
 from datasets import Dataset
@@ -28,8 +29,8 @@ models = [
     'clip-vit-large-patch14-336',
 ]
 assert args.model in models, f"Model {args.model} not found. Choose from {models}"
-model = CLIPModel.from_pretrained(f"openai/{args.model}").to(device)
-processor = CLIPProcessor.from_pretrained(f"openai/{args.model}")
+model = CLIPVisionModel.from_pretrained(f"openai/{args.model}").to(device)
+processor = AutoProcessor.from_pretrained(f"openai/{args.model}")
 print(f"Loaded model {args.model}")
 assert os.path.exists(args.image_dir), f"Directory {args.image_dir} not found"
 image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
@@ -49,7 +50,7 @@ def collate_fn(examples):
     image_paths = [example["image_path"] for example in examples]
     images = load_image(image_paths)
     inputs = processor(images=images, return_tensors="pt")
-    return {k: v.to(device) for k, v in inputs.items()}  # Move the inputs to the GPU
+    return {k: v.to(device) for k, v in inputs.items()}
 
 dataset = Dataset.from_dict({"image_path": images})
 dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
@@ -61,7 +62,7 @@ for i, batch in enumerate(dataloader):
     with torch.no_grad():
         outputs = model(**batch)
     last_hidden_states = outputs.last_hidden_state
-    embeddings = last_hidden_states.squeeze().cpu().numpy()  # Move the embeddings to the CPU for numpy conversion
+    embeddings = last_hidden_states.squeeze().cpu().numpy()
     start_index = i * args.batch_size
     end_index = min((i + 1) * args.batch_size, num_images)
     df.loc[start_index:end_index-1, 'image_path'] = images[start_index:end_index]

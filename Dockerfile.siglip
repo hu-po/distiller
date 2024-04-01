@@ -9,5 +9,5 @@ RUN pip install \
 RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
-COPY embed.clip.py /src/embed.clip.py
-CMD python embed.clip.py
+COPY embed.siglip.py /src/embed.siglip.py
+CMD python embed.siglip.py

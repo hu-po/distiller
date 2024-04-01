@@ -9,5 +9,5 @@ RUN pip install \
 RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
-COPY dinov2.py /src/dinov2.py
-CMD python dinov2.py
+COPY embed.dinov2.py /src/embed.dinov2.py
+CMD python embed.dinov2.py
