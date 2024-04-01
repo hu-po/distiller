@@ -4,7 +4,8 @@ RUN pip install --upgrade pip
 RUN pip install \
     transformers==4.39.2 \
     pillow \
-    pandas
+    pandas \
+    datasets
 RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src

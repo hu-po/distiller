@@ -2,14 +2,25 @@ import argparse
 import os
 import pandas as pd
 from PIL import Image
+import time
 from transformers import AutoImageProcessor, AutoModel
+import torch
+from torch.utils.data import DataLoader
+from datasets import Dataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--image_dir', type=str, default='/data/sdxl_imagenet_8')
 parser.add_argument("--model", type=str, default='facebook/dinov2-small')
+parser.add_argument("--batch_size", type=int, default=128)
 args = parser.parse_args()
 
-# https://huggingface.co/collections/facebook/dinov2-6526c98554b3d2576e071ce3
+if torch.cuda.is_available():
+    print("Using CUDA")
+    device = torch.device("cuda")
+else:
+    print("Using CPU")
+    device = torch.device("cpu")
+
 models = [
     'facebook/dinov2-small',
     'facebook/dinov2-base',
@@ -18,7 +29,7 @@ models = [
 ]
 assert args.model in models, f"Model {args.model} not found. Choose from {models}"
 processor = AutoImageProcessor.from_pretrained(args.model)
-model = AutoModel.from_pretrained(args.model)
+model = AutoModel.from_pretrained(args.model).to(device)  # Move the model to the GPU
 print(f"Loaded model {args.model}")
 assert os.path.exists(args.image_dir), f"Directory {args.image_dir} not found"
 image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
@@ -28,16 +39,34 @@ for root, dirs, files in os.walk(args.image_dir):
         if os.path.splitext(file)[1].lower() in image_extensions:
             image_path = os.path.join(root, file)
             images.append(image_path)
-print(f"Found {len(images)} images in directory {args.image_dir}")
 num_images = len(images)
-df = pd.DataFrame(index=range(num_images), columns=['image_path', 'embedding'])
-for i, image_path in enumerate(images):
-    image = Image.open(image_path)
-    inputs = processor(images=image, return_tensors="pt")
-    outputs = model(**inputs)
-    last_hidden_states = outputs.last_hidden_state
-    embedding = last_hidden_states.squeeze().detach().numpy()
-    df.loc[i] = [image_path, embedding]
+print(f"Found {num_images} images in {args.image_dir}")
 
+def load_image(image_paths):
+    return [Image.open(path) for path in image_paths]
+
+def collate_fn(examples):
+    image_paths = [example["image_path"] for example in examples]
+    images = load_image(image_paths)
+    inputs = processor(images=images, return_tensors="pt")
+    return {k: v.to(device) for k, v in inputs.items()}  # Move the inputs to the GPU
+
+dataset = Dataset.from_dict({"image_path": images})
+dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
+
+df = pd.DataFrame(index=range(num_images), columns=['image_path', 'embedding'])
+for i, batch in enumerate(dataloader):
+    start_time = time.time()
+    print(f"Processing batch {i+1}/{len(dataloader)}...")
+    with torch.no_grad():
+        outputs = model(**batch)
+    last_hidden_states = outputs.last_hidden_state
+    embeddings = last_hidden_states.squeeze().cpu().numpy()  # Move the embeddings to the CPU for numpy conversion
+    start_index = i * args.batch_size
+    end_index = min((i + 1) * args.batch_size, num_images)
+    df.loc[start_index:end_index-1, 'image_path'] = images[start_index:end_index]
+    df.loc[start_index:end_index-1, 'embedding'] = embeddings[:end_index-start_index].tolist()
+    print(f"\t... completed in {time.time()-start_time:.2f} seconds")
+print("Saving embeddings to CSV...")
 csv_path = os.path.join(args.image_dir, 'dinov2.csv')
 df.to_csv(csv_path, index=False)
