@@ -2,11 +2,9 @@
 FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 RUN pip install --upgrade pip
 RUN pip install \
-    torchbench \
-    torchvision \
-    Pillow \
-    torch  \
-    transformers==4.39.2
+    transformers==4.39.2 \
+    pillow \
+    pandas
 RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
