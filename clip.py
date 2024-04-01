@@ -3,15 +3,15 @@ import os
 import pandas as pd
 from PIL import Image
 import time
-from transformers import AutoImageProcessor, AutoModel
+from transformers import CLIPProcessor, CLIPModel
 import torch
 from torch.utils.data import DataLoader
 from datasets import Dataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--image_dir', type=str, default='/data/sdxl_imagenet_8')
-parser.add_argument("--model", type=str, default='dinov2-small')
-parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--model", type=str, default='clip-vit-base-patch16')
+parser.add_argument("--batch_size", type=int, default=32)
 args = parser.parse_args()
 
 if torch.cuda.is_available():
@@ -22,14 +22,14 @@ else:
     device = torch.device("cpu")
 
 models = [
-    'dinov2-small',
-    'dinov2-base',
-    'dinov2-large',
-    'dinov2-giant',
+    'clip-vit-base-patch16',
+    'clip-vit-base-patch32',
+    'clip-vit-large-patch14',
+    'clip-vit-large-patch14-336',
 ]
 assert args.model in models, f"Model {args.model} not found. Choose from {models}"
-processor = AutoImageProcessor.from_pretrained(f"facebook/{args.model}")
-model = AutoModel.from_pretrained(f"facebook/{args.model}").to(device)
+model = CLIPModel.from_pretrained(f"openai/{args.model}").to(device)
+processor = CLIPProcessor.from_pretrained(f"openai/{args.model}")
 print(f"Loaded model {args.model}")
 assert os.path.exists(args.image_dir), f"Directory {args.image_dir} not found"
 image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
