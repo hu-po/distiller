@@ -1,0 +1,14 @@
+# https://hub.docker.com/r/pytorch/pytorch/tags
+FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
+RUN pip install --upgrade pip
+RUN pip install \
+    torchbench \
+    torchvision \
+    Pillow \
+    torch  \
+    transformers==4.39.2
+RUN mkdir /data
+RUN mkdir /src
+WORKDIR /src
+COPY dinov2.py /src/dinov2.py
+CMD python dinov2.py
