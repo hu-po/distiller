@@ -1,5 +1,8 @@
 # https://hub.docker.com/r/pytorch/pytorch/tags
 FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
+ENV MODEL="clip-vit-base-patch16"
+ENV BATCH_SIZE=64
+ENV IMAGE_DIR="sdxl_imagenet_8"
 RUN pip install --upgrade pip
 RUN pip install \
     transformers==4.39.2 \
@@ -10,4 +13,4 @@ RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
 COPY embed.clip.py /src/embed.clip.py
-CMD python embed.clip.py
+CMD python embed.clip.py --model=$MODEL --batch_size=$BATCH_SIZE --image_dir=$IMAGE_DIR

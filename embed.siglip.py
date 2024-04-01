@@ -4,14 +4,14 @@ import os
 import pandas as pd
 from PIL import Image
 import time
-from transformers import AutoProcessor, CLIPVisionModel
+from transformers import AutoProcessor, SiglipVisionModel
 import torch
 from torch.utils.data import DataLoader
 from datasets import Dataset
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--image_dir', type=str, default='/data/sdxl_imagenet_8')
-parser.add_argument("--model", type=str, default='siglip-base-patch16-256')
+parser.add_argument('--image_dir', type=str, default='sdxl_imagenet_8')
+parser.add_argument("--model", type=str, default='siglip-base-patch16-224')
 parser.add_argument("--batch_size", type=int, default=32)
 args = parser.parse_args()
 
@@ -31,19 +31,20 @@ models = [
     'siglip-large-patch16-384',
 ]
 assert args.model in models, f"Model {args.model} not found. Choose from {models}"
-model = CLIPVisionModel.from_pretrained(f"google/{args.model}").to(device)
+model = SiglipVisionModel.from_pretrained(f"google/{args.model}").to(device)
 processor = AutoProcessor.from_pretrained(f"google/{args.model}")
 print(f"Loaded model {args.model}")
-assert os.path.exists(args.image_dir), f"Directory {args.image_dir} not found"
+image_dir_path = os.path.join('/data', args.image_dir)
+assert os.path.exists(image_dir_path), f"Directory {image_dir_path} not found"
 image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
 images = []
-for root, dirs, files in os.walk(args.image_dir):
+for root, dirs, files in os.walk(image_dir_path):
     for file in files:
         if os.path.splitext(file)[1].lower() in image_extensions:
             image_path = os.path.join(root, file)
             images.append(image_path)
 num_images = len(images)
-print(f"Found {num_images} images in {args.image_dir}")
+print(f"Found {num_images} images in {image_dir_path}")
 
 def load_image(image_paths):
     return [Image.open(path) for path in image_paths]
@@ -71,5 +72,5 @@ for i, batch in enumerate(dataloader):
     df.loc[start_index:end_index-1, 'embedding'] = embeddings[:end_index-start_index].tolist()
     print(f"\t... completed in {time.time()-start_time:.2f} seconds")
 print("Saving embeddings to CSV...")
-csv_path = os.path.join(args.image_dir, f'{args.model}.csv')
+csv_path = os.path.join(image_dir_path, f'{args.model}.csv')
 df.to_csv(csv_path, index=False)

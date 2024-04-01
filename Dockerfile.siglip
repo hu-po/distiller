@@ -1,13 +1,18 @@
 # https://hub.docker.com/r/pytorch/pytorch/tags
 FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
+ENV MODEL="siglip-base-patch16-224"
+ENV BATCH_SIZE=64
+ENV IMAGE_DIR="sdxl_imagenet_8"
 RUN pip install --upgrade pip
 RUN pip install \
     transformers==4.39.2 \
     pillow \
     pandas \
-    datasets
+    datasets \
+    sentencepiece \
+    protobuf
 RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
 COPY embed.siglip.py /src/embed.siglip.py
-CMD python embed.siglip.py
+CMD python embed.siglip.py --model=$MODEL --batch_size=$BATCH_SIZE --image_dir=$IMAGE_DIR
