@@ -1,6 +1,7 @@
 import argparse
 import os
 import pandas as pd
+import numpy as np
 from PIL import Image
 import time
 from transformers import AutoImageProcessor, AutoModel
@@ -54,20 +55,24 @@ def collate_fn(examples):
 
 dataset = Dataset.from_dict({"image_path": images})
 dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn)
-
-df = pd.DataFrame(index=range(num_images), columns=['image_path', 'embedding'])
+embeddings = np.zeros((num_images, model.config.hidden_size))
+print(f"Embeddings will be {embeddings.shape} of {embeddings.dtype}")
 for i, batch in enumerate(dataloader):
     start_time = time.time()
     print(f"Processing batch {i+1}/{len(dataloader)}...")
     with torch.no_grad():
         outputs = model(**batch)
     last_hidden_states = outputs.last_hidden_state
-    embeddings = last_hidden_states.squeeze().cpu().numpy()
     start_index = i * args.batch_size
     end_index = min((i + 1) * args.batch_size, num_images)
-    df.loc[start_index:end_index-1, 'image_path'] = images[start_index:end_index]
-    df.loc[start_index:end_index-1, 'embedding'] = embeddings[:end_index-start_index].tolist()
+    embeddings[start_index:end_index] = last_hidden_states.squeeze().cpu().numpy()
     print(f"\t... completed in {time.time()-start_time:.2f} seconds")
-print("Saving embeddings to CSV...")
+
+embeddings_path = os.path.join(image_dir_path, f'{args.model}.npy')
+np.save(embeddings_path, embeddings)
+print(f"Saved embeddings to {embeddings_path}")
+df = pd.DataFrame(index=range(num_images), columns=['image_path'])
+df['image_path'] = images
 csv_path = os.path.join(image_dir_path, f'{args.model}.csv')
 df.to_csv(csv_path, index=False)
+print(f"Saved CSV to {csv_path}")

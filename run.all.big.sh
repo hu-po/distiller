@@ -11,7 +11,7 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
     -e MODEL="dinov2-giant" \
-    -e BATCH_SIZE=32 \
+    -e BATCH_SIZE=64 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     embed.dinov2
 # CLIP
@@ -23,7 +23,7 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
     -e MODEL="clip-vit-large-patch14-336" \
-    -e BATCH_SIZE=32 \
+    -e BATCH_SIZE=64 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     embed.clip
 # SigLIP
@@ -35,6 +35,6 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
     -e MODEL="siglip-large-patch16-384" \
-    -e BATCH_SIZE=32 \
+    -e BATCH_SIZE=64 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     embed.siglip
