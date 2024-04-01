@@ -10,6 +10,6 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
     -e MODEL="dinov2-small" \
-    -e BATCH_SIZE=128 \
+    -e BATCH_SIZE=256 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     embed.dinov2

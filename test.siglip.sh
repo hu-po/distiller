@@ -10,6 +10,6 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
     -e MODEL="siglip-base-patch16-224" \
-    -e BATCH_SIZE=128 \
+    -e BATCH_SIZE=256 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     embed.siglip
