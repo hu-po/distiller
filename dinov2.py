@@ -20,17 +20,24 @@ assert args.model in models, f"Model {args.model} not found. Choose from {models
 processor = AutoImageProcessor.from_pretrained(args.model)
 model = AutoModel.from_pretrained(args.model)
 print(f"Loaded model {args.model}")
-df = pd.DataFrame(columns=['image_path', 'embedding'])
 assert os.path.exists(args.image_dir), f"Directory {args.image_dir} not found"
 image_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
-images = [os.path.join(args.image_dir, f) for f in os.listdir(args.image_dir) if os.path.splitext(f)[1].lower() in image_extensions]
+images = []
+for root, dirs, files in os.walk(args.image_dir):
+    for file in files:
+        if os.path.splitext(file)[1].lower() in image_extensions:
+            image_path = os.path.join(root, file)
+            images.append(image_path)
 print(f"Found {len(images)} images in directory {args.image_dir}")
-for image_path in images:
+num_images = len(images)
+df = pd.DataFrame(index=range(num_images), columns=['image_path', 'embedding'])
+for i, image_path in enumerate(images):
     image = Image.open(image_path)
     inputs = processor(images=image, return_tensors="pt")
     outputs = model(**inputs)
     last_hidden_states = outputs.last_hidden_state
     embedding = last_hidden_states.squeeze().detach().numpy()
-    df = df.append({'image_path': image_path, 'embedding': embedding}, ignore_index=True)
+    df.loc[i] = [image_path, embedding]
+
 csv_path = os.path.join(args.image_dir, 'dinov2.csv')
 df.to_csv(csv_path, index=False)
