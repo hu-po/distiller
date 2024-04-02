@@ -100,12 +100,12 @@ distill_targets = [
     ("siglip-large-patch16-384", (576, 1024)),
 ]
 
-assert os.path.exists(
-    args.train_data_dir
-), f"Training data directory {args.train_data_dir} does not exist."
-assert os.path.exists(
-    args.test_data_dir
-), f"Testing data directory {args.test_data_dir} does not exist."
+train_data_path = os.path.join(args.data_dir, args.train_data_dir)
+assert os.path.exists(train_data_path), f"{args.train_data_dir} does not exist."
+print(f"Training data directory: {train_data_path}")
+test_data_path = os.path.join(args.data_dir, args.test_data_dir)
+assert os.path.exists(test_data_path), f"{args.test_data_dir} does not exist."
+print(f"Test data directory: {test_data_path}")
 
 # normalization of images depends on dataset
 train_img_mu = [float(mu) for mu in args.img_mu.split(",")]
@@ -152,16 +152,16 @@ def custom_dataset(csv_files, npy_files, img_dir, img_mu, img_std):
 
 # Load the custom dataset
 train_images, train_targets = custom_dataset(
-    csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
-    img_dir=args.train_data_dir,
+    csv_files=[f"{train_data_path}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{train_data_path}/{t[0]}.npy" for t in distill_targets],
+    img_dir=train_data_path,
     img_mu=train_img_mu,
     img_std=train_img_std,
 )
 test_images, test_targets = custom_dataset(
-    csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
-    img_dir=args.test_data_dir,
+    csv_files=[f"{test_data_path}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{test_data_path}/{t[0]}.npy" for t in distill_targets],
+    img_dir=test_data_path,
     img_mu=test_img_mu,
     img_std=test_img_std,
 )

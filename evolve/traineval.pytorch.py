@@ -19,11 +19,13 @@ parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--run_name", type=str, default="test.pytorch")
 parser.add_argument("--round", type=int, default=0)
 
-parser.add_argument("--train_data_dir", type=str, default="/data/train")
-parser.add_argument("--test_data_dir", type=str, default="/data/test")
+parser.add_argument("--data_dir", type=str, default="/data")
 parser.add_argument("--ckpt_dir", type=str, default="/ckpt")
 parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
+
+parser.add_argument("--train_data_dir", type=str, default="sdxl_imagenet_8/train")
+parser.add_argument("--test_data_dir", type=str, default="sdxl_imagenet_8/test")
 
 parser.add_argument("--img_size", type=int, default=224)
 parser.add_argument("--train_img_mu", type=str, default="0.558373,0.519655,0.478256")
@@ -107,12 +109,12 @@ distill_targets = [
     ("siglip-large-patch16-384", (576, 1024)),
 ]
 
-assert os.path.exists(
-    args.train_data_dir
-), f"Training data directory {args.train_data_dir} does not exist."
-assert os.path.exists(
-    args.test_data_dir
-), f"Testing data directory {args.test_data_dir} does not exist."
+train_data_path = os.path.join(args.data_dir, args.train_data_dir)
+assert os.path.exists(train_data_path), f"{args.train_data_dir} does not exist."
+print(f"Training data directory: {train_data_path}")
+test_data_path = os.path.join(args.data_dir, args.test_data_dir)
+assert os.path.exists(test_data_path), f"{args.test_data_dir} does not exist."
+print(f"Test data directory: {test_data_path}")
 
 # normalization of images depends on dataset
 train_img_mu = [float(mu) for mu in args.img_mu.split(",")]
@@ -154,9 +156,9 @@ class DistilDataset(Dataset):
         return image, embeddings
 
 train_dataset = DistilDataset(
-    csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
-    img_dir=args.train_data_dir,
+    csv_files=[f"{train_data_path}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{train_data_path}/{t[0]}.npy" for t in distill_targets],
+    img_dir=train_data_path,
     transform=transforms.Compose(
     [
         transforms.Resize((args.img_size, args.img_size)),
@@ -169,9 +171,9 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Tru
 assert len(train_dataset) > 0, "Training dataset is empty."
 
 test_dataset = DistilDataset(
-    csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
-    img_dir=args.test_data_dir,
+    csv_files=[f"{test_data_path}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{test_data_path}/{t[0]}.npy" for t in distill_targets],
+    img_dir=test_data_path,
     transform=transforms.Compose(
     [
         transforms.Resize((args.img_size, args.img_size)),

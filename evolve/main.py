@@ -14,12 +14,12 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
 
-from llms import 
+# from llms import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--base_dir", type=str, default="/home/oop/dev/data/")
-parser.add_argument("--data_dir", type=str, default="/home/oop/dev/data/sdxl_imagenet_8")
+parser.add_argument("--data_dir", type=str, default="/home/oop/dev/data/")
 # parser.add_argument("--framework", type=str, default="pytorch")
 parser.add_argument("--framework", type=str, default="jax")
 parser.add_argument("--num_models", type=int, default=2)
@@ -44,11 +44,6 @@ os.makedirs(ckpt_dir, exist_ok=True)
 print(f"ckpt directory at {ckpt_dir}")
 data_dir = args.data_dir
 assert os.path.exists(data_dir), f"Data directory {data_dir} does not exist"
-print(f"Using existing data directory at {data_dir}")
-train_dir = os.path.join(data_dir, "train")
-print(f"train directory at {train_dir}")
-test_dir = os.path.join(data_dir, "test")
-print(f"test directory at {test_dir}")
 
 # Spin up a Tensorboard instance to monitor training
 os.system("pkill -f 'tensorboard'")
@@ -161,10 +156,6 @@ Do not explain return only the code.""",
                 f"{logs_dir}:/logs",
                 "-v",
                 f"{data_dir}:/data",
-                "-e",
-                f"RUN_NAME={model}",
-                "-e",
-                f"ROUND={round}",
                 f"evolve.{args.framework}",
                 "python",
                 f"/src/traineval.{args.framework}.py",

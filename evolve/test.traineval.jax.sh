@@ -13,14 +13,13 @@ docker run \
     --rm \
     -p 5555:5555 \
     --gpus 0 \
-    -v ${MODEL_PATH}:/src/model.py \
     -v ${DATA_PATH}:/data \
     -v ${CKPT_PATH}:/ckpt \
     -v ${LOGS_PATH}:/logs \
-    -e RUN_NAME=test \
-    -e ROUND=0 \
-     python /src/traineval.jax.py \
-     --run_name=$RUN_NAME \
-     --round=$ROUND \
-     --train_data_dir=$TRAIN_IMAGE_DIR \
-     --test_data_dir=$TEST_IMAGE_DIR
+    -v ${MODEL_PATH}:/src/model.py \
+    evolve.jax \
+    python /src/traineval.jax.py \
+    --run_name=test \
+    --round=0 \
+    --train_data_dir=$TRAIN_IMAGE_DIR \
+    --test_data_dir=$TEST_IMAGE_DIR
