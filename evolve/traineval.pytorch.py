@@ -97,12 +97,12 @@ hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
 # ---- Dataset
 
 distill_targets = [
-    ("clip-vit-base-patch16", ()),
-    ("dinov2-small", ()),
-    ("siglip-base-patch16-224", ()),
-    ("clip-vit-large-patch14-336", ()),
-    ("dinov2-giant", ()),
-    ("siglip-large-patch16-384", ()),
+    ("clip-vit-base-patch16", (197, 768)),
+    ("dinov2-small", (257, 384)),
+    ("siglip-base-patch16-224", (196, 768)),
+    ("clip-vit-large-patch14-336", (577, 1024)),
+    ("dinov2-giant", (257, 1536)),
+    ("siglip-large-patch16-384", (576, 1024)),
 ]
 
 assert os.path.exists(
