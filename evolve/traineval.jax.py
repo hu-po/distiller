@@ -16,13 +16,6 @@ import numpy as np
 import yaml
 from tensorboardX import SummaryWriter
 
-# When running in the docker container the model will be in /src/model.py
-if os.path.exists("/src/model.py"):
-    from model import init_params, predict
-else:
-    # for local testing use hardcoded path
-    from evolve.models.jax.mlp import init_params, predict
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--run_name", type=str, default="test.jax")
@@ -34,11 +27,17 @@ parser.add_argument("--ckpt_dir", type=str, default="/ckpt")
 parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
 
+parser.add_argument("--img_size", type=int, default=224)
+parser.add_argument("--img_mu", type=str, default="0.485,0.456,0.406")
+parser.add_argument("--img_std", type=str, default="0.229,0.224,0.225")
+
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=4)
 parser.add_argument("--early_stop", type=int, default=6)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
+parser.add_argument("--output_seq_len", type=int, default=64)
+parser.add_argument("--output_hidden_dim", type=int, default=32)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -63,6 +62,29 @@ hparams = {
 # Set the random seed
 rng = random.PRNGKey(args.seed)
 
+# ---- Verify Model
+
+# when running in the docker container the model will be in /src/model.py
+if os.path.exists("/src/model.py"):
+    from model import init_params, predict
+else:
+    # for local testing use hardcoded path
+    from evolve.models.jax.mlp import init_params, predict
+
+# verify output shape
+mock_img = jnp.zeros((args.batch_size, args.img_size, args.img_size, 3))
+params = init_params(rng)
+params["output_seq_len"] = args.output_seq_len
+params["output_hidden_dim"] = args.output_hidden_dim
+output = predict(mock_img, params)
+assert output.shape == (args.batch_size, args.output_seq_len, args.output_hidden_dim), f"Invalid output shape: {output.shape}"
+
+# verify model size
+model_size = sum(param.size for param in jax.tree_flatten(params)[0])
+assert model_size < args.max_model_size, f"Model size {model_size} exceeds max model size {args.max_model_size}"
+print(f"Model size: {model_size}")
+hparams["model_size"] = model_size
+
 # ---- Dataset
 
 assert os.path.exists(
@@ -72,6 +94,12 @@ assert os.path.exists(
     args.test_data_dir
 ), f"Testing data directory {args.test_data_dir} does not exist."
 
+# normalization of images depends on dataset
+image_mu = [float(mu) for mu in args.img_mu.split(",")]
+image_std = [float(std) for std in args.img_std.split(",")]
+assert len(image_mu) == len(image_std) == 3, "Invalid image mean and std"
+assert all(0 <= mu <= 1 for mu in image_mu), "Invalid image mean"
+assert all(0 <= std <= 1 for std in image_std), "Invalid image std"
 
 def custom_dataset(csv_files, npy_files, img_dir):
     def parse_embeddings(filename):
@@ -83,7 +111,12 @@ def custom_dataset(csv_files, npy_files, img_dir):
         for img_path in csv_data.iloc[:, 0]:
             img_path = os.path.join(img_dir, img_path)
             image = Image.open(img_path).convert("RGB")
-            image = jnp.array(image, dtype=jnp.float32) / 255.0
+            image = image.resize((args.img_size, args.img_size))
+            image = np.array(image, dtype=np.float32)
+            mean = np.array(image_mu, dtype=np.float32)
+            std = np.array(image_std, dtype=np.float32)
+            image = (image / 255.0 - mean) / std
+
             images.append(image)
         return jnp.array(images)
 
@@ -146,7 +179,7 @@ def data_stream(rng):
 
 batches = data_stream(rng)
 
-# ---- Model
+# ---- Full Model w/ Heads
 
 params = {
     "backbone": init_params(rng),

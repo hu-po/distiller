@@ -14,14 +14,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 
-
-# When running in the docker container the model will be in /src/model.py
-if os.path.exists("/src/model.py"):
-    from model import Block
-else:
-    # for local testing use hardcoded path
-    from evolve.models.pytorch.mlp import Block
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--run_name", type=str, default="test.pytorch")
@@ -33,11 +25,17 @@ parser.add_argument("--ckpt_dir", type=str, default="/ckpt")
 parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
 
+parser.add_argument("--img_size", type=int, default=224)
+parser.add_argument("--img_mu", type=str, default="0.485,0.456,0.406")
+parser.add_argument("--img_std", type=str, default="0.229,0.224,0.225")
+
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=4)
 parser.add_argument("--early_stop", type=int, default=6)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
+parser.add_argument("--output_seq_len", type=int, default=64)
+parser.add_argument("--output_hidden_dim", type=int, default=32)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -68,6 +66,34 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed(args.seed)
 
+# ---- Verify Model
+
+# when running in the docker container the model will be in /src/model.py
+if os.path.exists("/src/model.py"):
+    from model import Block
+else:
+    # for local testing use hardcoded path
+    from evolve.models.pytorch.mlp import Block
+
+# verify output shape
+model = Block(
+    output_seq_len = args.output_seq_len,
+    output_hidden_dim = args.output_seq_len,
+).to(device)
+for param in model.parameters():
+    assert param.sum() != 0, "Model parameter(s) not initialized properly."
+mock_img = torch.randn(args.batch_size, 3, args.img_size, args.img_size).to(device)
+assert model(mock_img).shape == torch.Size(
+    [args.batch_size, args.output_seq_len, args.output_hidden_dim])
+
+# verify model size
+model_size = sum(p.numel() for p in model.parameters())
+assert (
+    model_size < args.max_model_size
+), f"Model size {model_size} exceeds limit {args.max_model_size}"
+print(f"Model size: {model_size / 1e6}M")
+hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
+
 # ---- Dataset
 
 assert os.path.exists(
@@ -77,6 +103,12 @@ assert os.path.exists(
     args.test_data_dir
 ), f"Testing data directory {args.test_data_dir} does not exist."
 
+# normalization of images depends on dataset
+image_mu = [float(mu) for mu in args.img_mu.split(",")]
+image_std = [float(std) for std in args.img_std.split(",")]
+assert len(image_mu) == len(image_std) == 3, "Invalid image mean and std"
+assert all(0 <= mu <= 1 for mu in image_mu), "Invalid image mean"
+assert all(0 <= std <= 1 for std in image_std), "Invalid image std"
 
 class DistilDataset(Dataset):
     def __init__(self, csv_files, npy_files, img_dir, transform=None):
@@ -105,6 +137,13 @@ class DistilDataset(Dataset):
 
         return image, embeddings
 
+transform = transforms.Compose(
+    [
+        transforms.Resize((args.img_size, args.img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=image_mu, std=image_std),
+    ]
+)
 
 train_dataset = DistilDataset(
     csv_files=[
@@ -118,15 +157,7 @@ train_dataset = DistilDataset(
         f"{args.train_data_dir}/siglip-base-patch16-224.npy",
     ],
     img_dir=args.train_data_dir,
-    transform=transforms.Compose(
-        [
-            transforms.Resize((224, 224)),  # Resize the image to a fixed size
-            transforms.ToTensor(),  # Convert the image to a tensor
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),  # Normalize the image
-        ]
-    ),
+    transform=transform,
 )
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 assert len(train_dataset) > 0, "Training dataset is empty."
@@ -143,34 +174,13 @@ test_dataset = DistilDataset(
         f"{args.test_data_dir}/siglip-base-patch16-224.npy",
     ],
     img_dir=args.test_data_dir,
-    transform=transforms.Compose(
-        [
-            transforms.Resize((224, 224)),  # Resize the image to a fixed size
-            transforms.ToTensor(),  # Convert the image to a tensor
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-            ),  # Normalize the image
-        ]
-    ),
+    transform=transform,
 )
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 assert len(test_dataset) > 0, "Testing dataset is empty."
 
-# ---- Model
+# ---- Full Model w/ Heads
 
-model = Block().to(device)
-# Verify output shape
-for param in model.parameters():
-    assert param.sum() != 0, "Model parameter(s) not initialized properly."
-assert model(torch.randn(1, 3, 224, 224).to(device)).shape == torch.Size(
-    [1, num_classes]
-)
-model_size = sum(p.numel() for p in model.parameters())
-assert (
-    model_size < args.max_model_size
-), f"Model size {model_size} exceeds limit {args.max_model_size}"
-print(f"Model size: {model_size / 1e6}M")
-hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
 
 # ----- Optimizer and Loss
 
