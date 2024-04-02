@@ -1,8 +1,9 @@
 # Distiller
 
-Distilled Image Encoder
+Distilled Image Encoder via Generative Evolutionary Code Search using LLMs.
 
-Use pre-trained image encoders to encode a directory of images. The encodings
-will be saved into a pandas dataframe (csv).
+`/embed` - Use pre-trained image encoders to encode a directory of images into sequences of image tokens.
+`/evolve`
+
 
 

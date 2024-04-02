@@ -1,9 +1,9 @@
 export DATA_PATH="/home/oop/dev/data/test_data"
 export CKPT_PATH="/home/oop/dev/data/test_model/ckpt"
 export LOGS_PATH="/home/oop/dev/data/test_model/logs"
-export MODEL_PATH="/home/oop/dev/arenavolution/players/pytorch/eeab3b.py"
+export MODEL_PATH="/home/oop/dev/distiller/evolve/models/pytorch/mlp.py"
 docker build \
-     -t "evo_pytorch" \
+     -t "evolve.pytorch" \
      -f Dockerfile.pytorch .
 docker run \
     -it \
@@ -14,6 +14,6 @@ docker run \
     -v ${DATA_PATH}:/data \
     -v ${CKPT_PATH}:/ckpt \
     -v ${LOGS_PATH}:/logs \
-    -e RUN_NAME=test2 \
+    -e RUN_NAME=test \
     -e ROUND=0 \
-    evo_pytorch
+    evolve.pytorch
