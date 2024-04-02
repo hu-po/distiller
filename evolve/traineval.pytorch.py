@@ -26,8 +26,10 @@ parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
 
 parser.add_argument("--img_size", type=int, default=224)
-parser.add_argument("--img_mu", type=str, default="0.485,0.456,0.406")
-parser.add_argument("--img_std", type=str, default="0.229,0.224,0.225")
+parser.add_argument("--train_img_mu", type=str, default="0.522,0.522,0.467")
+parser.add_argument("--train_img_std", type=str, default="0.200,0.182,0.178")
+parser.add_argument("--test_img_mu", type=str, default="0.558,0.520,0.478")
+parser.add_argument("--test_img_std", type=str, default="0.207,0.191,0.186")
 
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=4)
@@ -113,11 +115,16 @@ assert os.path.exists(
 ), f"Testing data directory {args.test_data_dir} does not exist."
 
 # normalization of images depends on dataset
-image_mu = [float(mu) for mu in args.img_mu.split(",")]
-image_std = [float(std) for std in args.img_std.split(",")]
-assert len(image_mu) == len(image_std) == 3, "Invalid image mean and std"
-assert all(0 <= mu <= 1 for mu in image_mu), "Invalid image mean"
-assert all(0 <= std <= 1 for std in image_std), "Invalid image std"
+train_img_mu = [float(mu) for mu in args.img_mu.split(",")]
+train_img_std = [float(std) for std in args.img_std.split(",")]
+assert len(train_img_mu) == len(train_img_std) == 3, "Invalid image mean and std"
+assert all(0 <= mu <= 1 for mu in train_img_mu), "Invalid image mean"
+assert all(0 <= std <= 1 for std in train_img_std), "Invalid image std"
+test_img_mu = [float(mu) for mu in args.test_img_mu.split(",")]
+test_img_std = [float(std) for std in args.test_img_std.split(",")]
+assert len(test_img_mu) == len(test_img_std) == 3, "Invalid image mean and std"
+assert all(0 <= mu <= 1 for mu in test_img_mu), "Invalid image mean"
+assert all(0 <= std <= 1 for std in test_img_std), "Invalid image std"
 
 class DistilDataset(Dataset):
     def __init__(self, csv_files, npy_files, img_dir, transform=None):
@@ -146,19 +153,17 @@ class DistilDataset(Dataset):
 
         return image, embeddings
 
-transform = transforms.Compose(
-    [
-        transforms.Resize((args.img_size, args.img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=image_mu, std=image_std),
-    ]
-)
-
 train_dataset = DistilDataset(
     csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
     npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.train_data_dir,
-    transform=transform,
+    transform=transforms.Compose(
+    [
+        transforms.Resize((args.img_size, args.img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=train_img_mu, std=train_img_std),
+    ]
+),
 )
 train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
 assert len(train_dataset) > 0, "Training dataset is empty."
@@ -167,7 +172,13 @@ test_dataset = DistilDataset(
     csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
     npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.test_data_dir,
-    transform=transform,
+    transform=transforms.Compose(
+    [
+        transforms.Resize((args.img_size, args.img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=test_img_mu, std=test_img_std),
+    ]
+),
 )
 test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 assert len(test_dataset) > 0, "Testing dataset is empty."

@@ -2,6 +2,8 @@ export DATA_PATH="/home/oop/dev/data"
 # image dataste should be inside data path
 export IMAGE_DIR="sdxl_imagenet_8/train"
 export HF_CACHE_PATH="/home/oop/.cache/huggingface"
+# pixel statistics of directory
+python pixelstats.py --dir ${DATA_PATH}/${IMAGE_DIR}
 # DinoV2
 docker build -t embed.dinov2 -f Dockerfile.dinov2 .
 docker run \
