@@ -96,6 +96,15 @@ hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
 
 # ---- Dataset
 
+distill_targets = [
+    ("clip-vit-base-patch16", ()),
+    ("dinov2-small", ()),
+    ("siglip-base-patch16-224", ()),
+    ("clip-vit-large-patch14-336", ()),
+    ("dinov2-giant", ()),
+    ("siglip-large-patch16-384", ()),
+]
+
 assert os.path.exists(
     args.train_data_dir
 ), f"Training data directory {args.train_data_dir} does not exist."
@@ -146,16 +155,8 @@ transform = transforms.Compose(
 )
 
 train_dataset = DistilDataset(
-    csv_files=[
-        f"{args.train_data_dir}/clip-vit-base-patch16.csv",
-        f"{args.train_data_dir}/dinov2-small.csv",
-        f"{args.train_data_dir}/siglip-base-patch16-224.csv",
-    ],
-    npy_files=[
-        f"{args.train_data_dir}/clip-vit-base-patch16.npy",
-        f"{args.train_data_dir}/dinov2-small.npy",
-        f"{args.train_data_dir}/siglip-base-patch16-224.npy",
-    ],
+    csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.train_data_dir,
     transform=transform,
 )
@@ -163,16 +164,8 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Tru
 assert len(train_dataset) > 0, "Training dataset is empty."
 
 test_dataset = DistilDataset(
-    csv_files=[
-        f"{args.test_data_dir}/clip-vit-base-patch16.csv",
-        f"{args.test_data_dir}/dinov2-small.csv",
-        f"{args.test_data_dir}/siglip-base-patch16-224.csv",
-    ],
-    npy_files=[
-        f"{args.test_data_dir}/clip-vit-base-patch16.npy",
-        f"{args.test_data_dir}/dinov2-small.npy",
-        f"{args.test_data_dir}/siglip-base-patch16-224.npy",
-    ],
+    csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.test_data_dir,
     transform=transform,
 )
@@ -180,6 +173,22 @@ test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False
 assert len(test_dataset) > 0, "Testing dataset is empty."
 
 # ---- Full Model w/ Heads
+
+class FullModel(nn.Module):
+    def __init__(self, model, output_seq_len, output_hidden_dim):
+        super(FullModel, self).__init__()
+        self.backbone = Block(
+            output_seq_len=output_seq_len,
+            output_hidden_dim=output_hidden_dim,
+        )
+        self.heads = []
+        for name, dims in range(len(distill_targets)):
+            head = nn.Linear(output_hidden_dim, dims)
+            self.heads.append(head)
+
+    def forward(self, x):
+        x = self.backbone(x)
+        return {name: head(x) for name, head in zip(distill_targets, self.heads)}
 
 
 # ----- Optimizer and Loss

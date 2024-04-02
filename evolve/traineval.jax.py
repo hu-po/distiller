@@ -87,6 +87,15 @@ hparams["model_size"] = model_size
 
 # ---- Dataset
 
+distill_targets = [
+    ("clip-vit-base-patch16", ()),
+    ("dinov2-small", ()),
+    ("siglip-base-patch16-224", ()),
+    ("clip-vit-large-patch14-336", ()),
+    ("dinov2-giant", ()),
+    ("siglip-large-patch16-384", ()),
+]
+
 assert os.path.exists(
     args.train_data_dir
 ), f"Training data directory {args.train_data_dir} does not exist."
@@ -132,33 +141,15 @@ def custom_dataset(csv_files, npy_files, img_dir):
 
     return images, embeddings_list
 
-
 # Load the custom dataset
 train_images, train_embeddings_list = custom_dataset(
-    csv_files=[
-        f"{args.train_data_dir}/clip-vit-base-patch16.csv",
-        f"{args.train_data_dir}/dinov2-small.csv",
-        f"{args.train_data_dir}/siglip-base-patch16-224.csv",
-    ],
-    npy_files=[
-        f"{args.train_data_dir}/clip-vit-base-patch16.npy",
-        f"{args.train_data_dir}/dinov2-small.npy",
-        f"{args.train_data_dir}/siglip-base-patch16-224.npy",
-    ],
+    csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.train_data_dir,
 )
-
 test_images, test_embeddings_list = custom_dataset(
-    csv_files=[
-        f"{args.test_data_dir}/clip-vit-base-patch16.csv",
-        f"{args.test_data_dir}/dinov2-small.csv",
-        f"{args.test_data_dir}/siglip-base-patch16-224.csv",
-    ],
-    npy_files=[
-        f"{args.test_data_dir}/clip-vit-base-patch16.npy",
-        f"{args.test_data_dir}/dinov2-small.npy",
-        f"{args.test_data_dir}/siglip-base-patch16-224.npy",
-    ],
+    csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
+    npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.test_data_dir,
 )
 
@@ -183,18 +174,19 @@ batches = data_stream(rng)
 
 params = {
     "backbone": init_params(rng),
-    "head": {
-        "proj.clip": random.normal(rng, (dim_seq, num_classes)),
-        "proj.dino": random.normal(rng, (dim_seq, num_classes)),
-        "proj.siglip": random.normal(rng, (dim_seq, num_classes)),
-    },
+    "head": {f"proj.{t[0]}": random.normal(rng, t[1]) for t in distill_targets},
 }
 
+def model_head(x, params, embedding_dim=(None, None)):
+    pass
 
 def model(x, params):
     x = predict(x, params["backbone"])
-    # TODO: model head for each embedding to be distilled
-    return x
+    outputs = []
+    for t in distill_targets:
+        x = model_head(x, params["head"][f"proj.{t[0]}"], embedding_dim=t[1])
+        outputs.append(x)
+    return outputs
 
 
 # ----- Optimizer and Loss
