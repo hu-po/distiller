@@ -5,16 +5,14 @@ import os
 import tqdm
 
 import jax
-import jax.lax as lax
 import jax.numpy as jnp
+import pandas as pd
+from PIL import Image
 
 from jax import jit, grad, random
 from jax.example_libraries import optimizers
 import matplotlib.pyplot as plt
-import numpy.random as npr
-from os import path
 import numpy as np
-import struct
 import yaml
 from tensorboardX import SummaryWriter
 
@@ -67,110 +65,122 @@ rng = random.PRNGKey(args.seed)
 
 # ---- Dataset
 
-assert os.path.exists(args.train_data_dir), f"Training data directory {args.train_data_dir} does not exist."
-assert os.path.exists(args.test_data_dir), f"Testing data directory {args.test_data_dir} does not exist."
-
-def mnist_raw(data_dir: str):
-    """Download and parse the raw MNIST dataset."""
-    # CVDF mirror of http://yann.lecun.com/exdb/mnist/
-    base_url = "https://storage.googleapis.com/cvdf-datasets/mnist/"
-
-    def parse_labels(filename):
-        with gzip.open(filename, "rb") as fh:
-            _ = struct.unpack(">II", fh.read(8))
-            return np.array(array.array("B", fh.read()), dtype=np.uint8)
-
-    def parse_images(filename):
-        with gzip.open(filename, "rb") as fh:
-            _, num_data, rows, cols = struct.unpack(">IIII", fh.read(16))
-            return np.array(array.array("B", fh.read()), dtype=np.uint8).reshape(
-                num_data, rows, cols
-            )
-
-    for filename in [
-        "train-images-idx3-ubyte.gz",
-        "train-labels-idx1-ubyte.gz",
-        "t10k-images-idx3-ubyte.gz",
-        "t10k-labels-idx1-ubyte.gz",
-    ]:
-        _download(base_url + filename, filename, data_dir)
-
-    train_images = parse_images(path.join(data_dir, "train-images-idx3-ubyte.gz"))
-    train_labels = parse_labels(path.join(data_dir, "train-labels-idx1-ubyte.gz"))
-    test_images = parse_images(path.join(data_dir, "t10k-images-idx3-ubyte.gz"))
-    test_labels = parse_labels(path.join(data_dir, "t10k-labels-idx1-ubyte.gz"))
-
-    return train_images, train_labels, test_images, test_labels
+assert os.path.exists(
+    args.train_data_dir
+), f"Training data directory {args.train_data_dir} does not exist."
+assert os.path.exists(
+    args.test_data_dir
+), f"Testing data directory {args.test_data_dir} does not exist."
 
 
-def mnist(permute_train=False, data_dir:str="/data/mnist"):
-    """Download, parse and process MNIST data to unit scale and one-hot labels."""
-    train_images, train_labels, test_images, test_labels = mnist_raw(data_dir)
+def custom_dataset(csv_files, npy_files, img_dir):
+    def parse_embeddings(filename):
+        return jnp.array(np.load(filename))
 
-    train_images = _partial_flatten(train_images) / np.float32(255.0)
-    test_images = _partial_flatten(test_images) / np.float32(255.0)
-    train_labels = _one_hot(train_labels, 10)
-    test_labels = _one_hot(test_labels, 10)
+    def parse_images(csv_file, img_dir):
+        csv_data = pd.read_csv(csv_file)
+        images = []
+        for img_path in csv_data.iloc[:, 0]:
+            img_path = os.path.join(img_dir, img_path)
+            image = Image.open(img_path).convert("RGB")
+            image = jnp.array(image, dtype=jnp.float32) / 255.0
+            images.append(image)
+        return jnp.array(images)
 
-    if permute_train:
-        perm = np.random.RandomState(0).permutation(train_images.shape[0])
-        train_images = train_images[perm]
-        train_labels = train_labels[perm]
+    embeddings_list = [parse_embeddings(npy_file) for npy_file in npy_files]
+    images = parse_images(csv_files[0], img_dir)
 
-    return train_images, train_labels, test_images, test_labels
+    assert all(
+        len(embeddings) == len(embeddings_list[0]) for embeddings in embeddings_list
+    ), "Number of rows in NPY files do not match"
+    assert len(images) == len(
+        embeddings_list[0]
+    ), "Number of images and embeddings do not match"
 
-# Load MNIST dataset
-train_images, train_labels, test_images, test_labels = mnist(data_dir=args.data_dir)
+    return images, embeddings_list
+
+
+# Load the custom dataset
+train_images, train_embeddings_list = custom_dataset(
+    csv_files=[
+        f"{args.train_data_dir}/clip-vit-base-patch16.csv",
+        f"{args.train_data_dir}/dinov2-small.csv",
+        f"{args.train_data_dir}/siglip-base-patch16-224.csv",
+    ],
+    npy_files=[
+        f"{args.train_data_dir}/clip-vit-base-patch16.npy",
+        f"{args.train_data_dir}/dinov2-small.npy",
+        f"{args.train_data_dir}/siglip-base-patch16-224.npy",
+    ],
+    img_dir=args.train_data_dir,
+)
+
+test_images, test_embeddings_list = custom_dataset(
+    csv_files=[
+        f"{args.test_data_dir}/clip-vit-base-patch16.csv",
+        f"{args.test_data_dir}/dinov2-small.csv",
+        f"{args.test_data_dir}/siglip-base-patch16-224.csv",
+    ],
+    npy_files=[
+        f"{args.test_data_dir}/clip-vit-base-patch16.npy",
+        f"{args.test_data_dir}/dinov2-small.npy",
+        f"{args.test_data_dir}/siglip-base-patch16-224.npy",
+    ],
+    img_dir=args.test_data_dir,
+)
+
 num_train = train_images.shape[0]
 num_complete_batches, leftover = divmod(num_train, args.batch_size)
 num_batches = num_complete_batches + bool(leftover)
-num_classes = 10
-dim_c = 1
-dim_seq = 28 * 28
 
-def data_stream():
-    rng = npr.RandomState(0)
+
+def data_stream(rng):
     while True:
-        perm = rng.permutation(num_train)
+        perm = random.permutation(rng, num_train)
         for i in range(num_batches):
             batch_idx = perm[i * args.batch_size : (i + 1) * args.batch_size]
-            yield jnp.expand_dims(train_images[batch_idx], axis=-1), train_labels[
-                batch_idx
+            yield train_images[batch_idx], [
+                embeddings[batch_idx] for embeddings in train_embeddings_list
             ]
 
-batches = data_stream()
+
+batches = data_stream(rng)
 
 # ---- Model
 
 params = {
-    "backbone" : init_params(rng),
-    "head" : {
-        "proj.clip" : random.normal(rng, (dim_seq, num_classes)),
-        "proj.dino" : random.normal(rng, (dim_seq, num_classes)),
-        "proj.siglip" : random.normal(rng, (dim_seq, num_classes)),
-    }
+    "backbone": init_params(rng),
+    "head": {
+        "proj.clip": random.normal(rng, (dim_seq, num_classes)),
+        "proj.dino": random.normal(rng, (dim_seq, num_classes)),
+        "proj.siglip": random.normal(rng, (dim_seq, num_classes)),
+    },
 }
+
 
 def model(x, params):
     x = predict(x, params["backbone"])
     # TODO: model head for each embedding to be distilled
     return x
 
+
 # ----- Optimizer and Loss
+
 
 def criterion(params, batch):
     images, labels = batch
     logits = model(images, params)
     return jnp.mean((logits - labels) ** 2)
 
-opt_init, opt_update, get_params = optimizers.adam(
-    args.learning_rate, args.b1, args.b2
-)
+
+opt_init, opt_update, get_params = optimizers.adam(args.learning_rate, args.b1, args.b2)
+
 
 @jit
 def update(i, opt_state, batch):
     params = get_params(opt_state)
     return opt_update(i, grad(criterion)(params, batch), opt_state)
+
 
 opt_state = opt_init(params)
 itercount = itertools.count()
@@ -206,7 +216,7 @@ for epoch in range(args.num_epochs):
     print(f"\t loss/test: {loss_test}")
     hist_loss_test.append(loss_test)
     writer.add_scalar("loss/test", loss_test, epoch)
-    
+
     # early stopping
     if epoch - last_best_epoch > args.early_stop:
         print(f"early stopping at epoch {epoch}")
@@ -219,10 +229,10 @@ if args.save_ckpt:
     # TODO
 
 # Save plot of training and test accuracy for VLMs to analyze
-plt.plot(range(epoch), hist_loss_train, label='train')
-plt.plot(range(epoch), hist_loss_test, label='test')
-plt.xlabel('epoch')
-plt.ylabel('loss')
+plt.plot(range(epoch), hist_loss_train, label="train")
+plt.plot(range(epoch), hist_loss_test, label="test")
+plt.xlabel("epoch")
+plt.ylabel("loss")
 plt.legend()
 plt.savefig(f"{args.ckpt_dir}/plot.{args.run_name}.png")
 
