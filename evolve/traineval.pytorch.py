@@ -108,15 +108,17 @@ opt = optim.Adam(
 # ---- Training Loop
 
 print("Starting training...")
-train_acc_history = []
-test_acc_history = []
+hist_loss_train = []
+hist_loss_test = []
+best_loss = np.inf
 last_best_epoch = 0
 for epoch in range(args.num_epochs):
     epoch_start_time = time.time()
 
     model.train()
-    train_loss = 0
-    for images, labels in tqdm(train_loader, desc=f"train.epoch.{epoch}"):
+    loss_train = 0
+    progress_bar = tqdm(train_loader, desc=f"train.epoch.{epoch}")
+    for images, labels in progress_bar:
         images = images.to(device)
         labels = labels.to(device)
         opt.zero_grad()
@@ -124,31 +126,39 @@ for epoch in range(args.num_epochs):
         loss = criterion(outputs, labels)
         loss.backward()
         opt.step()
-        train_loss += loss.item()
+        loss_train += loss.item()
+        progress_bar.set_postfix({"loss": loss.item()})
 
     epoch_duration = time.time() - epoch_start_time
-    print(f"\t train epoch took {epoch_duration:0.2f} sec")
+    print(f"\t duration {epoch_duration:0.2f} sec")
 
-    print(f"\t loss: {train_loss / len(train_loader)}")
-    writer.add_scalar("loss/train", train_loss / len(train_loader), epoch)
-    if train_loss < best_loss:
-        best_loss = train_loss
+    # TRAIN LOSS
+    loss_train /= len(train_loader)
+    hist_loss_train.append(loss_train)
+    print(f"\t loss/train: {loss_train}")
+    writer.add_scalar("loss/train", loss_train, epoch)
+    if loss_train < best_loss:
+        best_loss = loss_train
         last_best_epoch = epoch
 
+    # EVAL LOSS
     with torch.no_grad():
+        loss_test = 0
         progress_bar = tqdm(test_loader, desc="test")
         for images, labels in progress_bar:
             images = images.to(device)
             labels = labels.to(device)
             outputs = model(images)
-            _, predicted = torch.max(outputs, 1)
-            test_accuracy += (predicted == labels).sum().item()
-            progress_bar.set_postfix({"acc": test_accuracy / len(progress_bar)})
+            loss = criterion(outputs, labels)
+            loss_test += loss.item()
+            progress_bar.set_postfix({"loss": loss.item()})
 
-    test_accuracy /= len(test_dataset)
-    print(f"acc/test: {test_accuracy}")
-    writer.add_scalar("acc.test", test_accuracy, epoch)
+    loss_test /= len(test_dataset)
+    print(f"\t loss/test: {loss_test}")
+    hist_loss_test.append(loss_test)
+    writer.add_scalar("loss/test", loss_test, epoch)
 
+    # early stopping
     if epoch - last_best_epoch > args.early_stop:
         print(f"early stopping at epoch {epoch}")
         break
@@ -160,15 +170,15 @@ if args.save_ckpt:
     torch.save(model.state_dict(), model_save_path)
 
 # Save plot of training and test accuracy for VLMs to analyze
-plt.plot(range(epoch), train_acc_history, label='train')
-plt.plot(range(epoch), test_acc_history, label='test')
+plt.plot(range(epoch), hist_loss_train, label='train')
+plt.plot(range(epoch), hist_loss_test, label='test')
 plt.xlabel('epoch')
-plt.ylabel('accuracy')
+plt.ylabel('loss')
 plt.legend()
-plt.savefig(f"{args.log_dir}/plot.{args.run_name}.png")
+plt.savefig(f"{args.ckpt_dir}/plot.{args.run_name}.png")
 
 # Update tensorboard logger and results yaml
-scores = {"test_accuracy": test_accuracy}
+scores = {"loss.test": loss_test}
 writer.add_hparams(hparams, scores)
 writer.close()
 results_filepath = os.path.join(args.ckpt_dir, f"results.r{args.round}.yaml")

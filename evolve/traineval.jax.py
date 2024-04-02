@@ -158,7 +158,7 @@ def model(x, params):
 
 # ----- Optimizer and Loss
 
-def loss_mse(params, batch):
+def criterion(params, batch):
     images, labels = batch
     logits = model(images, params)
     return jnp.mean((logits - labels) ** 2)
@@ -170,7 +170,7 @@ opt_init, opt_update, get_params = optimizers.adam(
 @jit
 def update(i, opt_state, batch):
     params = get_params(opt_state)
-    return opt_update(i, grad(loss_mse)(params, batch), opt_state)
+    return opt_update(i, grad(criterion)(params, batch), opt_state)
 
 opt_state = opt_init(params)
 itercount = itertools.count()
@@ -178,8 +178,9 @@ itercount = itertools.count()
 # ---- Training Loop
 
 print("Starting training...")
-train_acc_history = []
-test_acc_history = []
+hist_loss_train = []
+hist_loss_test = []
+best_loss = np.inf
 last_best_epoch = 0
 for epoch in range(args.num_epochs):
     epoch_start_time = time.time()
@@ -189,18 +190,24 @@ for epoch in range(args.num_epochs):
         print(f"Batch {batch_idx+1}/{num_batches}", end="\r")
 
     epoch_duration = time.time() - epoch_start_time
-    print(f"\t train epoch took {epoch_duration:0.2f} sec")
+    print(f"\t duration {epoch_duration:0.2f} sec")
 
+    # TRAIN LOSS
     params = get_params(opt_state)
-    train_acc = accuracy(params, (train_images, train_labels))
-    test_acc = accuracy(params, (test_images, test_labels))
-    train_acc_history.append(train_acc)
-    test_acc_history.append(test_acc)
-    
-    print(f"Epoch {epoch} in {epoch_start_time:0.2f} sec")
-    print(f"Training set accuracy {train_acc}")
-    print(f"Test set accuracy {test_acc}")
+    loss_train = criterion(params, (train_images, train_labels))
+    print(f"\t loss/train: {loss_train}")
+    writer.add_scalar("loss/train", loss_train, epoch)
+    if loss_train < best_loss:
+        best_loss = loss_train
+        last_best_epoch = epoch
 
+    # EVAL LOSS
+    loss_test = criterion(params, (test_images, test_labels))
+    print(f"\t loss/test: {loss_test}")
+    hist_loss_test.append(loss_test)
+    writer.add_scalar("loss/test", loss_test, epoch)
+    
+    # early stopping
     if epoch - last_best_epoch > args.early_stop:
         print(f"early stopping at epoch {epoch}")
         break
@@ -212,15 +219,15 @@ if args.save_ckpt:
     # TODO
 
 # Save plot of training and test accuracy for VLMs to analyze
-plt.plot(range(epoch), train_acc_history, label='train')
-plt.plot(range(epoch), test_acc_history, label='test')
+plt.plot(range(epoch), hist_loss_train, label='train')
+plt.plot(range(epoch), hist_loss_test, label='test')
 plt.xlabel('epoch')
-plt.ylabel('accuracy')
+plt.ylabel('loss')
 plt.legend()
-plt.savefig(f"{args.log_dir}/plot.{args.run_name}.png")
+plt.savefig(f"{args.ckpt_dir}/plot.{args.run_name}.png")
 
 # Update tensorboard logger and results yaml
-scores = {"test_accuracy": test_accuracy}
+scores = {"loss.test": loss_test}
 writer.add_hparams(hparams, scores)
 writer.close()
 results_filepath = os.path.join(args.ckpt_dir, f"results.r{args.round}.yaml")
