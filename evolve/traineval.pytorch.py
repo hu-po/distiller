@@ -32,8 +32,8 @@ parser.add_argument("--test_img_mu", type=str, default="0.558373,0.519655,0.4782
 parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185902")
 
 parser.add_argument("--num_epochs", type=int, default=2)
-parser.add_argument("--batch_size", type=int, default=4)
-parser.add_argument("--early_stop", type=int, default=6)
+parser.add_argument("--batch_size", type=int, default=2)
+parser.add_argument("--early_stop", type=int, default=2)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
 parser.add_argument("--output_seq_len", type=int, default=64)

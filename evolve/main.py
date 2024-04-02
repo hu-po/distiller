@@ -166,6 +166,13 @@ Do not explain return only the code.""",
                 "-e",
                 f"ROUND={round}",
                 f"evolve.{args.framework}",
+                "python",
+                f"/src/traineval.{args.framework}.py",
+                f"--run_name={model}",
+                f"--round={round}",
+                f"--num_epochs={1}",
+                f"--batch_size={1}",
+                f"--early_stop={1}",
             ]
         )
         traineval_docker_proc.wait()
