@@ -6,11 +6,14 @@ RUN pip install --upgrade pip
 RUN pip install \
     "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
     jaxlib \
-    matplotlib
+    matplotlib \
+    tensorboardX
 RUN mkdir /data
 RUN mkdir /ckpt
 RUN mkdir /logs
 RUN mkdir /src
 WORKDIR /src
 COPY traineval.jax.py /src/traineval.jax.py
-CMD python /src/traineval.jax.py --run_name=$RUN_NAME --round=$ROUND
+CMD python /src/traineval.jax.py \
+    --run_name=$RUN_NAME \
+    --round=$ROUND
