@@ -10,9 +10,9 @@ args = parser.parse_args()
 
 directory = args.dir
 assert os.path.isdir(directory), f"Error: {directory} is not a valid directory."
-print(f"Calculating pixel statistics for images in {directory}...")
+# print(f"Calculating pixel statistics for images in {directory}...")
 
-image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
+image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif"]
 image_files = []
 for root, dirs, files in os.walk(directory):
     for file in files:
@@ -27,7 +27,9 @@ pixel_values = []
 
 for image_file in image_files:
     with Image.open(image_file) as img:
-        img_array = np.array(img, dtype=np.float32) / 255.0  # Normalize pixel values to [0, 1]
+        img_array = (
+            np.array(img, dtype=np.float32) / 255.0
+        )  # Normalize pixel values to [0, 1]
         pixel_values.append(img_array)
 
 pixel_values = np.concatenate(pixel_values)
@@ -35,8 +37,8 @@ mean = np.mean(pixel_values, axis=(0, 1))
 std = np.std(pixel_values, axis=(0, 1))
 
 # Format mean and std as comma-separated strings
-img_mu = ",".join([f"{val:.3f}" for val in mean])
-img_std = ",".join([f"{val:.3f}" for val in std])
+img_mu = ",".join([f"{val:.6f}" for val in mean])
+img_std = ",".join([f"{val:.6f}" for val in std])
 
-print(f"--img_mu {img_mu}")
-print(f"--img_std {img_std}")
+print(f"{img_mu}")
+print(f"{img_std}")

@@ -1,6 +1,6 @@
 export DATA_PATH="/home/oop/dev/data"
 # image dataste should be inside data path
-export IMAGE_DIR="sdxl_imagenet_8/train"
+export IMAGE_DIR="sdxl_imagenet_8/test"
 export HF_CACHE_PATH="/home/oop/.cache/huggingface"
 # pixel statistics of image directory
 pixel_stats=$(python pixelstats.py --dir ${DATA_PATH}/${IMAGE_DIR})
@@ -14,7 +14,7 @@ docker run \
     --gpus 0 \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
-    -e MODEL="dinov2-giant" \
+    -e MODEL="dinov2-small" \
     -e BATCH_SIZE=128 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     -e IMG_MU=${img_mu} \
@@ -28,7 +28,7 @@ docker run \
     --gpus 0 \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
-    -e MODEL="clip-vit-large-patch14-336" \
+    -e MODEL="clip-vit-base-patch16" \
     -e BATCH_SIZE=128 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     -e IMG_MU=${img_mu} \
@@ -42,7 +42,7 @@ docker run \
     --gpus 0 \
     -v ${DATA_PATH}:/data \
     -v ${HF_CACHE_PATH}:/root/.cache/huggingface \
-    -e MODEL="siglip-large-patch16-384" \
+    -e MODEL="siglip-base-patch16-224" \
     -e BATCH_SIZE=128 \
     -e IMAGE_DIR=${IMAGE_DIR} \
     -e IMG_MU=${img_mu} \

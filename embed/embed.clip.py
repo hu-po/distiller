@@ -14,6 +14,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--image_dir', type=str, default='sdxl_imagenet_8')
 parser.add_argument("--model", type=str, default='clip-vit-base-patch32')
 parser.add_argument("--batch_size", type=int, default=32)
+parser.add_argument("--image_mean", type=str, default="0.48145466,0.4578275,0.40821073")
+parser.add_argument("--image_std", type=str, default="0.26862954,0.26130258,0.27577711")
 args = parser.parse_args()
 
 if torch.cuda.is_available():
@@ -22,6 +24,16 @@ if torch.cuda.is_available():
 else:
     print("Using CPU")
     device = torch.device("cpu")
+
+# normalization of images depends on dataset
+image_mean = [float(mu) for mu in args.image_mean.split(",")]
+image_std = [float(std) for std in args.image_std.split(",")]
+assert len(image_mean) == len(image_std) == 3, "Invalid image mean and std"
+assert all(0 <= mu <= 1 for mu in image_mean), "Invalid image mean"
+assert all(0 <= std <= 1 for std in image_std), "Invalid image std"
+print("Images will be normalized with:")
+print(f"\t mean: {image_mean}")
+print(f"\t std: {image_std}")
 
 models = [
     'clip-vit-base-patch16',
@@ -33,7 +45,7 @@ assert args.model in models, f"Model {args.model} not found. Choose from {models
 # https://huggingface.co/docs/transformers/model_doc/clip#transformers.CLIPVisionModel
 model = CLIPVisionModel.from_pretrained(f"openai/{args.model}").to(device)
 # https://huggingface.co/docs/transformers/model_doc/clip#transformers.CLIPProcessor
-processor = CLIPProcessor.from_pretrained(f"openai/{args.model}")
+processor = CLIPProcessor.from_pretrained(f"openai/{args.model}", image_mean=image_mean, image_std=image_std)
 print(f"Loaded model {args.model}")
 image_dir_path = os.path.join('/data', args.image_dir)
 assert os.path.exists(image_dir_path), f"Directory {image_dir_path} not found"

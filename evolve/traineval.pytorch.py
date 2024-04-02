@@ -26,10 +26,10 @@ parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
 
 parser.add_argument("--img_size", type=int, default=224)
-parser.add_argument("--train_img_mu", type=str, default="0.522,0.522,0.467")
-parser.add_argument("--train_img_std", type=str, default="0.200,0.182,0.178")
-parser.add_argument("--test_img_mu", type=str, default="0.558,0.520,0.478")
-parser.add_argument("--test_img_std", type=str, default="0.207,0.191,0.186")
+parser.add_argument("--train_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--train_img_std", type=str, default="0.207305,0.191163,0.185902")
+parser.add_argument("--test_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185902")
 
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=4)
@@ -193,7 +193,7 @@ class FullModel(nn.Module):
             output_hidden_dim=output_hidden_dim,
         )
         self.heads = []
-        for name, dims in range(len(distill_targets)):
+        for _, dims in range(len(distill_targets)):
             head = nn.Linear(output_hidden_dim, dims)
             self.heads.append(head)
 

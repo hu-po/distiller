@@ -28,10 +28,10 @@ parser.add_argument("--save_ckpt", type=bool, default=False)
 parser.add_argument("--logs_dir", type=str, default="/logs")
 
 parser.add_argument("--img_size", type=int, default=224)
-parser.add_argument("--train_img_mu", type=str, default="0.522,0.522,0.467")
-parser.add_argument("--train_img_std", type=str, default="0.200,0.182,0.178")
-parser.add_argument("--test_img_mu", type=str, default="0.558,0.520,0.478")
-parser.add_argument("--test_img_std", type=str, default="0.207,0.191,0.186")
+parser.add_argument("--train_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--train_img_std", type=str, default="0.207305,0.191163,0.185902")
+parser.add_argument("--test_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185902")
 
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=4)
@@ -149,14 +149,14 @@ def custom_dataset(csv_files, npy_files, img_dir, img_mu, img_std):
     return images, embeddings_list
 
 # Load the custom dataset
-train_images, train_embeddings_list = custom_dataset(
+train_images, train_targets = custom_dataset(
     csv_files=[f"{args.train_data_dir}/{t[0]}.csv" for t in distill_targets],
     npy_files=[f"{args.train_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.train_data_dir,
     img_mu=train_img_mu,
     img_std=train_img_std,
 )
-test_images, test_embeddings_list = custom_dataset(
+test_images, test_targets = custom_dataset(
     csv_files=[f"{args.test_data_dir}/{t[0]}.csv" for t in distill_targets],
     npy_files=[f"{args.test_data_dir}/{t[0]}.npy" for t in distill_targets],
     img_dir=args.test_data_dir,
@@ -174,9 +174,7 @@ def data_stream(rng):
         perm = random.permutation(rng, num_train)
         for i in range(num_batches):
             batch_idx = perm[i * args.batch_size : (i + 1) * args.batch_size]
-            yield train_images[batch_idx], [
-                embeddings[batch_idx] for embeddings in train_embeddings_list
-            ]
+            yield train_images[batch_idx], [e[batch_idx] for e in train_targets]
 
 
 batches = data_stream(rng)
@@ -204,9 +202,9 @@ def model(x, params):
 
 
 def criterion(params, batch):
-    images, labels = batch
+    images, targets = batch
     logits = model(images, params)
-    return jnp.mean((logits - labels) ** 2)
+    return jnp.mean((logits - targets) ** 2)
 
 
 opt_init, opt_update, get_params = optimizers.adam(args.learning_rate, args.b1, args.b2)
@@ -240,7 +238,7 @@ for epoch in range(args.num_epochs):
 
     # TRAIN LOSS
     params = get_params(opt_state)
-    loss_train = criterion(params, (train_images, train_labels))
+    loss_train = criterion(params, (train_images, train_targets))
     print(f"\t loss/train: {loss_train}")
     writer.add_scalar("loss/train", loss_train, epoch)
     if loss_train < best_loss:
@@ -248,7 +246,7 @@ for epoch in range(args.num_epochs):
         last_best_epoch = epoch
 
     # EVAL LOSS
-    loss_test = criterion(params, (test_images, test_labels))
+    loss_test = criterion(params, (test_images, test_targets))
     print(f"\t loss/test: {loss_test}")
     hist_loss_test.append(loss_test)
     writer.add_scalar("loss/test", loss_test, epoch)

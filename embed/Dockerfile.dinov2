@@ -3,6 +3,8 @@ FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
 ENV MODEL="dinov2-small"
 ENV BATCH_SIZE=64
 ENV IMAGE_DIR="sdxl_imagenet_8"
+ENV IMG_MU="0.48145466,0.4578275,0.40821073"
+ENV IMG_STD="0.26862954,0.26130258,0.27577711"
 RUN pip install --upgrade pip
 RUN pip install \
     transformers==4.39.2 \
@@ -13,4 +15,9 @@ RUN mkdir /data
 RUN mkdir /src
 WORKDIR /src
 COPY embed.dinov2.py /src/embed.dinov2.py
-CMD python embed.dinov2.py --model=$MODEL --batch_size=$BATCH_SIZE --image_dir=$IMAGE_DIR
+CMD python embed.dinov2.py \
+    --model=$MODEL \
+    --batch_size=$BATCH_SIZE \
+    --image_dir=$IMAGE_DIR \
+    --image_mean=$IMG_MU \
+    --image_std=$IMG_STD
