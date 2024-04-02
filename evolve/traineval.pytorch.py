@@ -222,12 +222,12 @@ for epoch in range(args.num_epochs):
     model.train()
     loss_train = 0
     progress_bar = tqdm(train_loader, desc=f"train.epoch.{epoch}")
-    for images, labels in progress_bar:
+    for images, targets in progress_bar:
         images = images.to(device)
-        labels = labels.to(device)
+        targets = targets.to(device)
         opt.zero_grad()
         outputs = model(images)
-        loss = criterion(outputs, labels)
+        loss = criterion(outputs, targets)
         loss.backward()
         opt.step()
         loss_train += loss.item()
@@ -249,11 +249,11 @@ for epoch in range(args.num_epochs):
     with torch.no_grad():
         loss_test = 0
         progress_bar = tqdm(test_loader, desc="test")
-        for images, labels in progress_bar:
+        for images, targets in progress_bar:
             images = images.to(device)
-            labels = labels.to(device)
+            targets = targets.to(device)
             outputs = model(images)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, targets)
             loss_test += loss.item()
             progress_bar.set_postfix({"loss": loss.item()})
 

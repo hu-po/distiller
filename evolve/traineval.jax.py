@@ -205,8 +205,8 @@ def model(x, params):
 
 def criterion(params, batch):
     images, targets = batch
-    logits = model(images, params)
-    return jnp.mean((logits - targets) ** 2)
+    predictions = model(images, params)
+    return jnp.mean((predictions - targets) ** 2)
 
 
 opt_init, opt_update, get_params = optimizers.adam(args.learning_rate, args.b1, args.b2)
