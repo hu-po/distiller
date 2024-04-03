@@ -33,7 +33,7 @@ parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
-parser.add_argument("--max_model_size", type=int, default=1e8)
+parser.add_argument("--max_model_size", type=int, default=int(1e8))
 parser.add_argument("--num_tokens", type=int, default=8)
 parser.add_argument("--token_dim", type=int, default=16)
 parser.add_argument("--learning_rate", type=float, default=1e-3)
@@ -75,7 +75,7 @@ output = predict(mock_img, params)
 assert output.shape == (args.batch_size, args.num_tokens, args.token_dim), f"Invalid output shape: {output.shape}"
 
 # verify model size
-model_size = sum(param.size for param in jax.tree_flatten(params)[0])
+model_size = sum(param.size for param in jax.tree_util.tree_flatten(params)[0])
 assert model_size < args.max_model_size, f"Model size {model_size} exceeds max model size {args.max_model_size}"
 print(f"Model size: {model_size}")
 hparams["model_size"] = model_size
@@ -194,6 +194,7 @@ def model_head(x, head_params, num_tokens, token_dim):
             x = jnp.concatenate([x, padding], axis=1)
     return x
 
+@jit
 def model(x, params):
     x = predict(x, params["encoder"])
     outputs = {}
@@ -206,6 +207,7 @@ def model(x, params):
 
 # ----- Loss Function
 
+@jit
 def distillation_loss(params, batch):
     images, targets = batch
     outputs = model(images, params)
@@ -257,11 +259,13 @@ for epoch in range(args.num_epochs):
     # TRAIN LOSS
     params = get_params(opt_state)
     loss_train = distillation_loss(params, (train_images, train_targets))
+    loss_train = float(jnp.asarray(loss_train))
     print(f"\t loss/train: {loss_train}")
     writer.add_scalar("loss/train", loss_train, epoch)
 
     # EVAL LOSS
     loss_test = distillation_loss(params, (test_images, test_targets))
+    loss_test = float(jnp.asarray(loss_train))
     print(f"\t loss/test: {loss_test}")
     hist_loss_test.append(loss_test)
     writer.add_scalar("loss/test", loss_test, epoch)

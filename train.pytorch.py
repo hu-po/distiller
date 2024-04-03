@@ -33,7 +33,7 @@ parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185
 parser.add_argument("--num_epochs", type=int, default=2)
 parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
-parser.add_argument("--max_model_size", type=int, default=1e8)
+parser.add_argument("--max_model_size", type=int, default=int(1e8))
 parser.add_argument("--num_tokens", type=int, default=8)
 parser.add_argument("--token_dim", type=int, default=16)
 parser.add_argument("--learning_rate", type=float, default=1e-3)
