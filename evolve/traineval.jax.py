@@ -39,8 +39,8 @@ parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
-parser.add_argument("--num_tokens", type=int, default=64)
-parser.add_argument("--token_dim", type=int, default=32)
+parser.add_argument("--num_tokens", type=int, default=8)
+parser.add_argument("--token_dim", type=int, default=16)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -77,7 +77,7 @@ else:
 # verify output shape
 mock_img = jnp.zeros((args.batch_size, args.img_size, args.img_size, 3))
 init_params, predict = make_encoder(args.num_tokens, args.token_dim)
-params = init_params(rng, args.img_size * args.img_size * 3)
+params = init_params(rng, args.img_size)
 output = predict(mock_img, params)
 assert output.shape == (args.batch_size, args.num_tokens, args.token_dim), f"Invalid output shape: {output.shape}"
 
@@ -93,9 +93,9 @@ distill_targets = [
     ("clip-vit-base-patch16", (197, 768)),
     ("dinov2-small", (257, 384)),
     ("siglip-base-patch16-224", (196, 768)),
-    ("clip-vit-large-patch14-336", (577, 1024)),
-    ("dinov2-giant", (257, 1536)),
-    ("siglip-large-patch16-384", (576, 1024)),
+    # ("clip-vit-large-patch14-336", (577, 1024)),
+    # ("dinov2-giant", (257, 1536)),
+    # ("siglip-large-patch16-384", (576, 1024)),
 ]
 
 train_data_path = os.path.join(args.data_dir, args.train_data_dir)
@@ -106,8 +106,8 @@ assert os.path.exists(test_data_path), f"{args.test_data_dir} does not exist."
 print(f"Test data directory: {test_data_path}")
 
 # normalization of images depends on dataset
-train_img_mu = [float(mu) for mu in args.img_mu.split(",")]
-train_img_std = [float(std) for std in args.img_std.split(",")]
+train_img_mu = [float(mu) for mu in args.train_img_mu.split(",")]
+train_img_std = [float(std) for std in args.train_img_mu.split(",")]
 assert len(train_img_mu) == len(train_img_std) == 3, "Invalid image mean and std"
 assert all(0 <= mu <= 1 for mu in train_img_mu), "Invalid image mean"
 assert all(0 <= std <= 1 for std in train_img_std), "Invalid image std"
@@ -181,8 +181,8 @@ batches = data_stream(rng)
 
 # ---- Full Model w/ Heads
 
-encoder_params, predict = make_encoder(args.num_tokens, args.token_dim)
-params = {"encoder": encoder_params(rng)}
+init_params, predict = make_encoder(args.num_tokens, args.token_dim)
+params = {"encoder": init_params(rng, args.img_size)}
 
 params["heads"] = {}
 for name, (num_tokens, token_dim) in distill_targets.items():

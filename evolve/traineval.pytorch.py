@@ -39,8 +39,8 @@ parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
-parser.add_argument("--num_tokens", type=int, default=64)
-parser.add_argument("--token_dim", type=int, default=32)
+parser.add_argument("--num_tokens", type=int, default=8)
+parser.add_argument("--token_dim", type=int, default=16)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -98,14 +98,14 @@ hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
 
 # ---- Dataset
 
-distill_targets = [
-    ("clip-vit-base-patch16", (197, 768)),
-    ("dinov2-small", (257, 384)),
-    ("siglip-base-patch16-224", (196, 768)),
-    ("clip-vit-large-patch14-336", (577, 1024)),
-    ("dinov2-giant", (257, 1536)),
-    ("siglip-large-patch16-384", (576, 1024)),
-]
+distill_targets = {
+    "clip-vit-base-patch16" : (197, 768),
+    "dinov2-small" : (257, 384),
+    "siglip-base-patch16-224" : (196, 768),
+    "clip-vit-large-patch14-336" : (577, 1024),
+    "dinov2-giant" : (257, 1536),
+    "siglip-large-patch16-384" : (576, 1024),
+}
 
 train_data_path = os.path.join(args.data_dir, args.train_data_dir)
 assert os.path.exists(train_data_path), f"{args.train_data_dir} does not exist."
@@ -115,8 +115,8 @@ assert os.path.exists(test_data_path), f"{args.test_data_dir} does not exist."
 print(f"Test data directory: {test_data_path}")
 
 # normalization of images depends on dataset
-train_img_mu = [float(mu) for mu in args.img_mu.split(",")]
-train_img_std = [float(std) for std in args.img_std.split(",")]
+train_img_mu = [float(mu) for mu in args.train_img_mu.split(",")]
+train_img_std = [float(std) for std in args.train_img_mu.split(",")]
 assert len(train_img_mu) == len(train_img_std) == 3, "Invalid image mean and std"
 assert all(0 <= mu <= 1 for mu in train_img_mu), "Invalid image mean"
 assert all(0 <= std <= 1 for std in train_img_std), "Invalid image std"
@@ -128,25 +128,23 @@ assert all(0 <= std <= 1 for std in test_img_std), "Invalid image std"
 
 class DistilDataset(Dataset):
     def __init__(self, csv_files, npy_files, img_dir, transform=None):
-        self.csv_data = [pd.read_csv(csv_file) for csv_file in csv_files]
-        self.embeddings = [np.load(npy_file) for npy_file in npy_files]
         self.img_dir = img_dir
         self.transform = transform
+        self.csv_data = {k : pd.read_csv(v) for k, v in csv_files.items()}
+        self.embeddings = {k : np.load(v) for k, v in npy_files.items()}
         assert all(
-            len(csv_data) == len(self.csv_data[0]) for csv_data in self.csv_data
+            len(csv_data) == len(self.csv_data[k]) for k, csv_data in self.csv_data.items()
         ), "Number of rows in CSV files do not match"
         assert all(
-            len(embeddings) == len(self.embeddings[0]) for embeddings in self.embeddings
+            len(embeddings) == len(self.embeddings[k]) for k, embeddings in self.embeddings.items()
         ), "Number of rows in NPY files do not match"
 
     def __len__(self):
-        return len(self.csv_data[0])
+        return len(self.csv_data[next(iter(self.csv_data))])
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.csv_data[0].iloc[idx, 0])
-        embeddings = [
-            torch.from_numpy(embeddings[idx]) for embeddings in self.embeddings
-        ]
+        img_path = os.path.join(self.img_dir, self.csv_data[next(iter(self.csv_data))].iloc[idx, 0])
+        embeddings = {k : torch.from_numpy(v[idx]) for k, v in self.embeddings.items()}
         image = Image.open(img_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
@@ -154,8 +152,8 @@ class DistilDataset(Dataset):
         return image, embeddings
 
 train_dataset = DistilDataset(
-    csv_files=[f"{train_data_path}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{train_data_path}/{t[0]}.npy" for t in distill_targets],
+    csv_files={k : f"{train_data_path}/{k}.csv" for k, v in distill_targets.items()},
+    npy_files={k : f"{train_data_path}/{k}.npy" for k, v in distill_targets.items()},
     img_dir=train_data_path,
     transform=transforms.Compose(
     [
@@ -169,8 +167,8 @@ train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=Tru
 assert len(train_dataset) > 0, "Training dataset is empty."
 
 test_dataset = DistilDataset(
-    csv_files=[f"{test_data_path}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{test_data_path}/{t[0]}.npy" for t in distill_targets],
+    csv_files={k : f"{test_data_path}/{k}.csv" for k, v in distill_targets.items()},
+    npy_files={k : f"{test_data_path}/{k}.npy" for k, v in distill_targets.items()},
     img_dir=test_data_path,
     transform=transforms.Compose(
     [
@@ -186,26 +184,34 @@ assert len(test_dataset) > 0, "Testing dataset is empty."
 # ---- Full Model w/ Heads
 
 class FullModel(nn.Module):
-    def __init__(self, num_tokens, token_dim, distill_targets):
+    def __init__(self, distill_targets):
         super(FullModel, self).__init__()
-        self.backbone = Block(
-            num_tokens=num_tokens,
-            token_dim=token_dim,
-        )
+        self.backbone = Block(args.img_size, args.num_tokens, args.token_dim)
         self.heads = nn.ModuleDict()
+        self.head_configs = {}  # Store configurations for later use in the forward method
+        
         for name, (seq_len, hidden_dim) in distill_targets.items():
-            head = nn.Sequential(
-                nn.Linear(token_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, seq_len * hidden_dim),
-                nn.Reshape(seq_len, hidden_dim)
-            )
-            self.heads[name] = head
+            # Create individual layers and add them to the ModuleDict
+            self.heads[f"{name}_lin1"] = nn.Linear(args.num_tokens * args.token_dim, hidden_dim)
+            self.heads[f"{name}_relu"] = nn.ReLU()
+            self.heads[f"{name}_lin2"] = nn.Linear(hidden_dim, seq_len * hidden_dim)
+            # Store the seq_len and hidden_dim for each head to use during reshaping in the forward method
+            self.head_configs[name] = (seq_len, hidden_dim)
 
     def forward(self, x):
+        outputs = {}
         x = self.backbone(x)
-        return {name: head(x) for name, head in self.heads.items()}
+        for name, (seq_len, hidden_dim) in self.head_configs.items():
+            # Directly apply each layer in the sequence
+            y = self.heads[f"{name}_lin1"](x)
+            y = self.heads[f"{name}_relu"](y)
+            y = self.heads[f"{name}_lin2"](y)
+            # Reshape after the final linear layer
+            y = y.view(-1, seq_len, hidden_dim)
+            outputs[name] = y
+        return outputs
 
+model = FullModel(distill_targets).to(device)
 
 # ----- Loss Function
 
@@ -248,7 +254,7 @@ for epoch in range(args.num_epochs):
     progress_bar = tqdm(train_loader, desc=f"train.epoch.{epoch}")
     for images, targets in progress_bar:
         images = images.to(device)
-        targets = targets.to(device)
+        targets = {name: target.to(device) for name, target in targets.items()}
         opt.zero_grad()
         outputs = model(images)
         loss = distillation_loss(outputs, targets)
@@ -272,7 +278,7 @@ for epoch in range(args.num_epochs):
         progress_bar = tqdm(test_loader, desc="test")
         for images, targets in progress_bar:
             images = images.to(device)
-            targets = targets.to(device)
+            targets = {name: target.to(device) for name, target in targets.items()}
             outputs = model(images)
             loss = distillation_loss(outputs, targets)
             loss_test += loss.item()
