@@ -1,3 +1,10 @@
+"""
+A simple MLP implemented in PyTorch.
+This model is an image encoder.
+The input is a batch of images of dimmension [batch_size, H, W, C].
+The output is a sequence of image tokens of dimmension [batch_size, num_tokens, token_dim].
+"""
+
 import torch.nn as nn
 from einops.layers.torch import Rearrange
 

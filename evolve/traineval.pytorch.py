@@ -188,25 +188,51 @@ assert len(test_dataset) > 0, "Testing dataset is empty."
 # ---- Full Model w/ Heads
 
 class FullModel(nn.Module):
-    def __init__(self, model, output_seq_len, output_hidden_dim):
+    def __init__(self, output_seq_len, output_hidden_dim, distill_targets):
         super(FullModel, self).__init__()
         self.backbone = Block(
             output_seq_len=output_seq_len,
             output_hidden_dim=output_hidden_dim,
         )
-        self.heads = []
-        for _, dims in range(len(distill_targets)):
-            head = nn.Linear(output_hidden_dim, dims)
-            self.heads.append(head)
+        self.heads = nn.ModuleDict()
+        for name, (seq_len, hidden_dim) in distill_targets.items():
+            head = nn.Sequential(
+                nn.Linear(output_hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, seq_len * hidden_dim),
+                nn.Reshape(seq_len, hidden_dim)
+            )
+            self.heads[name] = head
 
     def forward(self, x):
         x = self.backbone(x)
-        return {name: head(x) for name, head in zip(distill_targets, self.heads)}
+        return {name: head(x) for name, head in self.heads.items()}
 
 
-# ----- Optimizer and Loss
+# ----- Loss Function
 
-criterion = nn.MSELoss()
+def distillation_loss(outputs, targets):
+    loss = 0
+    for name, output in outputs.items():
+        target = targets[name]
+        seq_len, hidden_dim = output.shape[1], output.shape[2]
+        target_seq_len, target_hidden_dim = target.shape[1], target.shape[2]
+        
+        if seq_len > target_seq_len:
+            output = output[:, :target_seq_len, :]
+        elif seq_len < target_seq_len:
+            padding = torch.zeros(output.shape[0], target_seq_len - seq_len, hidden_dim).to(output.device)
+            output = torch.cat([output, padding], dim=1)
+        
+        if hidden_dim != target_hidden_dim:
+            raise ValueError(f"Hidden dimensions do not match for {name}: {hidden_dim} != {target_hidden_dim}")
+        
+        loss += nn.MSELoss()(output, target)
+    
+    return loss / len(outputs)
+
+# ----- Optimizer
+
 opt = optim.Adam(model.parameters(), lr=args.learning_rate, betas=(args.b1, args.b2))
 
 # ---- Training Loop
@@ -227,7 +253,7 @@ for epoch in range(args.num_epochs):
         targets = targets.to(device)
         opt.zero_grad()
         outputs = model(images)
-        loss = criterion(outputs, targets)
+        loss = distillation_loss(outputs, targets)
         loss.backward()
         opt.step()
         loss_train += loss.item()
@@ -241,9 +267,6 @@ for epoch in range(args.num_epochs):
     hist_loss_train.append(loss_train)
     print(f"\t loss/train: {loss_train}")
     writer.add_scalar("loss/train", loss_train, epoch)
-    if loss_train < best_loss:
-        best_loss = loss_train
-        last_best_epoch = epoch
 
     # EVAL LOSS
     with torch.no_grad():
@@ -253,7 +276,7 @@ for epoch in range(args.num_epochs):
             images = images.to(device)
             targets = targets.to(device)
             outputs = model(images)
-            loss = criterion(outputs, targets)
+            loss = distillation_loss(outputs, targets)
             loss_test += loss.item()
             progress_bar.set_postfix({"loss": loss.item()})
 
@@ -263,6 +286,9 @@ for epoch in range(args.num_epochs):
     writer.add_scalar("loss/test", loss_test, epoch)
 
     # early stopping
+    if loss_test < best_loss:
+        best_loss = loss_test
+        last_best_epoch = epoch
     if epoch - last_best_epoch > args.early_stop:
         print(f"early stopping at epoch {epoch}")
         break

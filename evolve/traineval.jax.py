@@ -6,6 +6,7 @@ import tqdm
 
 import jax
 import jax.numpy as jnp
+from jax import nn, random
 import pandas as pd
 from PIL import Image
 
@@ -185,38 +186,58 @@ batches = data_stream(rng)
 
 params = {
     "backbone": init_params(rng),
-    "head": {f"proj.{t[0]}": random.normal(rng, t[1]) for t in distill_targets},
+    "heads": {name: random.normal(rng, (output_hidden_dim, hidden_dim)) for name, (seq_len, hidden_dim) in distill_targets.items()},
 }
 
-def model_head(x, params, embedding_dim=(None, None)):
-    pass
+def model_head(x, head_params, target_seq_len, target_hidden_dim):
+    x = nn.relu(x @ head_params)
+    x = x @ random.normal(rng, (x.shape[-1], target_seq_len * target_hidden_dim))
+    x = x.reshape(x.shape[0], target_seq_len, target_hidden_dim)
+    return x
 
 def model(x, params):
     x = predict(x, params["backbone"])
-    outputs = []
-    for t in distill_targets:
-        x = model_head(x, params["head"][f"proj.{t[0]}"], embedding_dim=t[1])
-        outputs.append(x)
+    outputs = {}
+    for name, (seq_len, hidden_dim) in distill_targets.items():
+        head_params = params["heads"][name]
+        x_head = model_head(x, head_params, seq_len, hidden_dim)
+        outputs[name] = x_head
     return outputs
+
+
+# ----- Loss Function
+
+def distillation_loss(params, batch):
+    images, targets = batch
+    outputs = model(images, params)
+    loss = 0.0
+    for name, output in outputs.items():
+        target = targets[name]
+        seq_len, hidden_dim = output.shape[1], output.shape[2]
+        target_seq_len, target_hidden_dim = target.shape[1], target.shape[2]
+        
+        if seq_len > target_seq_len:
+            output = output[:, :target_seq_len, :]
+        elif seq_len < target_seq_len:
+            padding = jnp.zeros((output.shape[0], target_seq_len - seq_len, hidden_dim))
+            output = jnp.concatenate([output, padding], axis=1)
+        
+        if hidden_dim != target_hidden_dim:
+            raise ValueError(f"Hidden dimensions do not match for {name}: {hidden_dim} != {target_hidden_dim}")
+        
+        loss += jnp.mean((output - target) ** 2)
+    
+    return loss / len(outputs)
 
 
 # ----- Optimizer and Loss
 
-
-def criterion(params, batch):
-    images, targets = batch
-    predictions = model(images, params)
-    return jnp.mean((predictions - targets) ** 2)
-
-
 opt_init, opt_update, get_params = optimizers.adam(args.learning_rate, args.b1, args.b2)
-
 
 @jit
 def update(i, opt_state, batch):
     params = get_params(opt_state)
-    return opt_update(i, grad(criterion)(params, batch), opt_state)
-
+    return opt_update(i, grad(distillation_loss)(params, batch), opt_state)
 
 opt_state = opt_init(params)
 itercount = itertools.count()
@@ -240,20 +261,20 @@ for epoch in range(args.num_epochs):
 
     # TRAIN LOSS
     params = get_params(opt_state)
-    loss_train = criterion(params, (train_images, train_targets))
+    loss_train = distillation_loss(params, (train_images, train_targets))
     print(f"\t loss/train: {loss_train}")
     writer.add_scalar("loss/train", loss_train, epoch)
-    if loss_train < best_loss:
-        best_loss = loss_train
-        last_best_epoch = epoch
 
     # EVAL LOSS
-    loss_test = criterion(params, (test_images, test_targets))
+    loss_test = distillation_loss(params, (test_images, test_targets))
     print(f"\t loss/test: {loss_test}")
     hist_loss_test.append(loss_test)
     writer.add_scalar("loss/test", loss_test, epoch)
 
     # early stopping
+    if loss_test < best_loss:
+        best_loss = loss_test
+        last_best_epoch = epoch
     if epoch - last_best_epoch > args.early_stop:
         print(f"early stopping at epoch {epoch}")
         break
