@@ -145,7 +145,7 @@ Do not explain return only the code.
         # skip any models that have already been evaluated
         if model in previous_results:
             print(f"Skipping {model} as it has already been evaluated")
-            best_scores[model] = previous_results[model]["test_accuracy"]
+            best_scores[model] = previous_results[model]["loss.test"]
             continue
         print(f"Running {args.framework} train for {model}")
         model_filepath = os.path.join(model_dir, f"{model}.py")
@@ -214,21 +214,21 @@ Do not explain return only the code.
     models = [x for x in models if x not in worst_models]
 
     # Plot round results
-    plot_filepath = os.path.join(ckpt_dir, "test_accuracy_plot.png")
+    plot_filepath = os.path.join(ckpt_dir, "plot.rounds.png")
     yaml_files = glob.glob(f"{ckpt_dir}/results.r*.yaml")
     rounds = []
-    test_acc = []
+    loss_test = []
     for file in yaml_files:
         with open(file, "r") as f:
             data = yaml.safe_load(f)
         round_number = int(file.split(".")[-2].split("r")[-1])
         for key in data:
             rounds.append(round_number)
-            test_acc.append(data[key]["test_accuracy"])
+            loss_test.append(data[key]["loss.test"])
 
-    plt.scatter(rounds, test_acc)
+    plt.scatter(rounds, loss_test)
     plt.xlabel("round")
-    plt.ylabel("acc")
+    plt.ylabel("loss.test")
     plt.title("evolution")
     plt.xlim(0, 32)
     plt.ylim(0, 1)
