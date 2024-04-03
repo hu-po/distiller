@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import tqdm
+from tqdm import tqdm
 from tensorboardX import SummaryWriter
 import yaml
 
@@ -89,14 +89,14 @@ hparams["model_size"] = model_size
 
 # ---- Dataset
 
-distill_targets = [
-    ("clip-vit-base-patch16", (197, 768)),
-    ("dinov2-small", (257, 384)),
-    ("siglip-base-patch16-224", (196, 768)),
-    # ("clip-vit-large-patch14-336", (577, 1024)),
-    # ("dinov2-giant", (257, 1536)),
-    # ("siglip-large-patch16-384", (576, 1024)),
-]
+distill_targets = {
+    "clip-vit-base-patch16" : (197, 768),
+    "dinov2-small" : (257, 384),
+    # "siglip-base-patch16-224" : (196, 768),
+    # "clip-vit-large-patch14-336" : (577, 1024),
+    # "dinov2-giant" : (257, 1536),
+    # "siglip-large-patch16-384" : (576, 1024),
+}
 
 train_data_path = os.path.join(args.data_dir, args.train_data_dir)
 assert os.path.exists(train_data_path), f"{args.train_data_dir} does not exist."
@@ -136,29 +136,29 @@ def custom_dataset(csv_files, npy_files, img_dir, img_mu, img_std):
             images.append(image)
         return jnp.array(images)
 
-    embeddings_list = [parse_embeddings(npy_file) for npy_file in npy_files]
-    images = parse_images(csv_files[0], img_dir)
+    targets = {k: parse_embeddings(npy_file) for k, npy_file in npy_files.items()}
+    images = parse_images(list(csv_files.values())[0], img_dir)
 
     assert all(
-        len(embeddings) == len(embeddings_list[0]) for embeddings in embeddings_list
+        len(target) == len(targets[list(targets.keys())[0]]) for target in targets.values()
     ), "Number of rows in NPY files do not match"
     assert len(images) == len(
-        embeddings_list[0]
+        targets[list(targets.keys())[0]]
     ), "Number of images and embeddings do not match"
 
-    return images, embeddings_list
+    return images, targets
 
 # Load the custom dataset
 train_images, train_targets = custom_dataset(
-    csv_files=[f"{train_data_path}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{train_data_path}/{t[0]}.npy" for t in distill_targets],
+    csv_files={k : f"{train_data_path}/{k}.csv" for k, v in distill_targets.items()},
+    npy_files={k : f"{train_data_path}/{k}.npy" for k, v in distill_targets.items()},
     img_dir=train_data_path,
     img_mu=train_img_mu,
     img_std=train_img_std,
 )
 test_images, test_targets = custom_dataset(
-    csv_files=[f"{test_data_path}/{t[0]}.csv" for t in distill_targets],
-    npy_files=[f"{test_data_path}/{t[0]}.npy" for t in distill_targets],
+    csv_files={k : f"{test_data_path}/{k}.csv" for k, v in distill_targets.items()},
+    npy_files={k : f"{test_data_path}/{k}.npy" for k, v in distill_targets.items()},
     img_dir=test_data_path,
     img_mu=test_img_mu,
     img_std=test_img_std,
@@ -174,7 +174,7 @@ def data_stream(rng):
         perm = random.permutation(rng, num_train)
         for i in range(num_batches):
             batch_idx = perm[i * args.batch_size : (i + 1) * args.batch_size]
-            yield train_images[batch_idx], [e[batch_idx] for e in train_targets]
+            yield train_images[batch_idx], {k : v[batch_idx] for k, v in train_targets.items()}
 
 
 batches = data_stream(rng)

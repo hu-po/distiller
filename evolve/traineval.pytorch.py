@@ -101,10 +101,10 @@ hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
 distill_targets = {
     "clip-vit-base-patch16" : (197, 768),
     "dinov2-small" : (257, 384),
-    "siglip-base-patch16-224" : (196, 768),
-    "clip-vit-large-patch14-336" : (577, 1024),
-    "dinov2-giant" : (257, 1536),
-    "siglip-large-patch16-384" : (576, 1024),
+    # "siglip-base-patch16-224" : (196, 768),
+    # "clip-vit-large-patch14-336" : (577, 1024),
+    # "dinov2-giant" : (257, 1536),
+    # "siglip-large-patch16-384" : (576, 1024),
 }
 
 train_data_path = os.path.join(args.data_dir, args.train_data_dir)
@@ -201,6 +201,7 @@ class FullModel(nn.Module):
     def forward(self, x):
         outputs = {}
         x = self.backbone(x)
+        x = x.view(x.size(0), -1)  # Reshape the output of the backbone
         for name, (seq_len, hidden_dim) in self.head_configs.items():
             # Directly apply each layer in the sequence
             y = self.heads[f"{name}_lin1"](x)
