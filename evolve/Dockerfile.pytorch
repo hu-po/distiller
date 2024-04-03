@@ -13,6 +13,7 @@ RUN pip install \
     torch \
     pyyaml \
     tensorboardX \
+    einops \
     tqdm
 RUN mkdir /data
 RUN mkdir /ckpt

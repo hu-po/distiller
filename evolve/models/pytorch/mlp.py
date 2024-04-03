@@ -10,13 +10,11 @@ from einops.layers.torch import Rearrange
 
 # must be called "Block" but this is a simple MLP
 class Block(nn.Module):
-    def __init__(self, input_dim, num_tokens, token_dim):
+    def __init__(self, img_size, num_tokens, token_dim):
         super(Block, self).__init__()
         self.flatten = nn.Flatten()
         self.layers = nn.Sequential(
-            nn.Linear(input_dim, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1024),
+            nn.Linear(img_size * img_size * 3, 1024),
             nn.ReLU(),
             nn.Linear(1024, num_tokens * token_dim),
             Rearrange('b (n d) -> b n d', n=num_tokens, d=token_dim)

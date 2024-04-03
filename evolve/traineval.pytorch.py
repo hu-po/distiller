@@ -81,15 +81,12 @@ else:
     from evolve.models.pytorch.mlp import Block
 
 # verify output shape
-model = Block(
-    num_tokens = args.num_tokens,
-    token_dim = args.num_tokens,
-).to(device)
+model = Block(args.img_size, args.num_tokens, args.token_dim).to(device)
 for param in model.parameters():
     assert param.sum() != 0, "Model parameter(s) not initialized properly."
 mock_img = torch.randn(args.batch_size, 3, args.img_size, args.img_size).to(device)
 assert model(mock_img).shape == torch.Size(
-    [args.batch_size, args.num_tokens, args.token_dim])
+    [args.batch_size, args.num_tokens, args.token_dim]), f"Invalid model output shape: {model(mock_img).shape}"
 
 # verify model size
 model_size = sum(p.numel() for p in model.parameters())

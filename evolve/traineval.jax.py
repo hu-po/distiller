@@ -72,11 +72,12 @@ if os.path.exists("/src/model.py"):
     from model import make_encoder
 else:
     # for local testing use hardcoded path
-    from evolve.models.jax.mlp import make_encoder
+    from evolve.models.jax.cnn import make_encoder
 
 # verify output shape
 mock_img = jnp.zeros((args.batch_size, args.img_size, args.img_size, 3))
-params, predict = make_encoder(args.num_tokens, args.token_dim)
+init_params, predict = make_encoder(args.num_tokens, args.token_dim)
+params = init_params(rng, args.img_size * args.img_size * 3)
 output = predict(mock_img, params)
 assert output.shape == (args.batch_size, args.num_tokens, args.token_dim), f"Invalid output shape: {output.shape}"
 
