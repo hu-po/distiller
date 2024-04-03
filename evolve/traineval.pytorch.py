@@ -38,8 +38,8 @@ parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
-parser.add_argument("--output_seq_len", type=int, default=64)
-parser.add_argument("--output_hidden_dim", type=int, default=32)
+parser.add_argument("--num_tokens", type=int, default=64)
+parser.add_argument("--token_dim", type=int, default=32)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -81,14 +81,14 @@ else:
 
 # verify output shape
 model = Block(
-    output_seq_len = args.output_seq_len,
-    output_hidden_dim = args.output_seq_len,
+    num_tokens = args.num_tokens,
+    token_dim = args.num_tokens,
 ).to(device)
 for param in model.parameters():
     assert param.sum() != 0, "Model parameter(s) not initialized properly."
 mock_img = torch.randn(args.batch_size, 3, args.img_size, args.img_size).to(device)
 assert model(mock_img).shape == torch.Size(
-    [args.batch_size, args.output_seq_len, args.output_hidden_dim])
+    [args.batch_size, args.num_tokens, args.token_dim])
 
 # verify model size
 model_size = sum(p.numel() for p in model.parameters())
@@ -188,16 +188,16 @@ assert len(test_dataset) > 0, "Testing dataset is empty."
 # ---- Full Model w/ Heads
 
 class FullModel(nn.Module):
-    def __init__(self, output_seq_len, output_hidden_dim, distill_targets):
+    def __init__(self, num_tokens, token_dim, distill_targets):
         super(FullModel, self).__init__()
         self.backbone = Block(
-            output_seq_len=output_seq_len,
-            output_hidden_dim=output_hidden_dim,
+            num_tokens=num_tokens,
+            token_dim=token_dim,
         )
         self.heads = nn.ModuleDict()
         for name, (seq_len, hidden_dim) in distill_targets.items():
             head = nn.Sequential(
-                nn.Linear(output_hidden_dim, hidden_dim),
+                nn.Linear(token_dim, hidden_dim),
                 nn.ReLU(),
                 nn.Linear(hidden_dim, seq_len * hidden_dim),
                 nn.Reshape(seq_len, hidden_dim)

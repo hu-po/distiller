@@ -1,8 +1,8 @@
 """
 A simple MLP implemented in PyTorch.
 This model is an image encoder.
-The input is a batch of images of dimmension [batch_size, H, W, C].
-The output is a sequence of image tokens of dimmension [batch_size, num_tokens, token_dim].
+The input is a batch of images of dimension [batch_size, C, H, W].
+The output is a sequence of image tokens of dimension [batch_size, num_tokens, token_dim].
 """
 
 import torch.nn as nn
@@ -10,15 +10,16 @@ from einops.layers.torch import Rearrange
 
 # must be called "Block" but this is a simple MLP
 class Block(nn.Module):
-    def __init__(self, num_classes=None):
+    def __init__(self, input_dim, num_tokens, token_dim):
         super(Block, self).__init__()
-        self.flatten = Rearrange('b c h w -> b (c h w)')
+        self.flatten = nn.Flatten()
         self.layers = nn.Sequential(
-            nn.Linear(224*224*3, 128),
+            nn.Linear(input_dim, 1024),
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(1024, 1024),
             nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.Linear(1024, num_tokens * token_dim),
+            Rearrange('b (n d) -> b n d', n=num_tokens, d=token_dim)
         )
 
     def forward(self, x):

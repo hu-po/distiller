@@ -41,8 +41,8 @@ parser.add_argument("--batch_size", type=int, default=2)
 parser.add_argument("--early_stop", type=int, default=2)
 
 parser.add_argument("--max_model_size", type=int, default=1e8)
-parser.add_argument("--output_seq_len", type=int, default=64)
-parser.add_argument("--output_hidden_dim", type=int, default=32)
+parser.add_argument("--num_tokens", type=int, default=64)
+parser.add_argument("--token_dim", type=int, default=32)
 
 parser.add_argument("--learning_rate", type=float, default=1e-3)
 parser.add_argument("--b1", type=float, default=0.9)
@@ -71,18 +71,16 @@ rng = random.PRNGKey(args.seed)
 
 # when running in the docker container the model will be in /src/model.py
 if os.path.exists("/src/model.py"):
-    from model import init_params, predict
+    from model import make_encoder
 else:
     # for local testing use hardcoded path
-    from evolve.models.jax.mlp import init_params, predict
+    from evolve.models.jax.mlp import make_encoder
 
 # verify output shape
 mock_img = jnp.zeros((args.batch_size, args.img_size, args.img_size, 3))
-params = init_params(rng)
-params["output_seq_len"] = args.output_seq_len
-params["output_hidden_dim"] = args.output_hidden_dim
+params, predict = make_encoder(args.num_tokens, args.token_dim)
 output = predict(mock_img, params)
-assert output.shape == (args.batch_size, args.output_seq_len, args.output_hidden_dim), f"Invalid output shape: {output.shape}"
+assert output.shape == (args.batch_size, args.num_tokens, args.token_dim), f"Invalid output shape: {output.shape}"
 
 # verify model size
 model_size = sum(param.size for param in jax.tree_flatten(params)[0])
@@ -184,23 +182,24 @@ batches = data_stream(rng)
 
 # ---- Full Model w/ Heads
 
-params = {
-    "backbone": init_params(rng),
-    "heads": {name: random.normal(rng, (output_hidden_dim, hidden_dim)) for name, (seq_len, hidden_dim) in distill_targets.items()},
-}
+encoder_params, predict = make_encoder(args.num_tokens, args.token_dim)
+params = {"encoder": encoder_params(rng)}
 
-def model_head(x, head_params, target_seq_len, target_hidden_dim):
+params["heads"] = {}
+for name, (num_tokens, token_dim) in distill_targets.items():
+    params["heads"][name] = random.normal(rng, (args.token_dim, num_tokens * token_dim))
+
+def model_head(x, head_params, num_tokens, token_dim):
     x = nn.relu(x @ head_params)
-    x = x @ random.normal(rng, (x.shape[-1], target_seq_len * target_hidden_dim))
-    x = x.reshape(x.shape[0], target_seq_len, target_hidden_dim)
+    x = x.reshape(x.shape[0], num_tokens, token_dim)
     return x
 
 def model(x, params):
-    x = predict(x, params["backbone"])
+    x = predict(x, params["encoder"])
     outputs = {}
-    for name, (seq_len, hidden_dim) in distill_targets.items():
+    for name, (num_tokens, token_dim) in distill_targets.items():
         head_params = params["heads"][name]
-        x_head = model_head(x, head_params, seq_len, hidden_dim)
+        x_head = model_head(x, head_params, num_tokens, token_dim)
         outputs[name] = x_head
     return outputs
 
@@ -213,18 +212,14 @@ def distillation_loss(params, batch):
     loss = 0.0
     for name, output in outputs.items():
         target = targets[name]
-        seq_len, hidden_dim = output.shape[1], output.shape[2]
-        target_seq_len, target_hidden_dim = target.shape[1], target.shape[2]
-        
-        if seq_len > target_seq_len:
-            output = output[:, :target_seq_len, :]
-        elif seq_len < target_seq_len:
-            padding = jnp.zeros((output.shape[0], target_seq_len - seq_len, hidden_dim))
+        num_tokens_out, token_dim_out = output.shape[1], output.shape[2]
+        num_tokens_target, token_dim_target = target.shape[1], target.shape[2]
+        assert token_dim_out == token_dim_target, f"Hidden dimensions do not match for {name}: {token_dim_out} != {token_dim_target}")
+        if num_tokens_out > num_tokens_target:
+            output = output[:, :num_tokens_target, :]
+        elif num_tokens_out < num_tokens_target:
+            padding = jnp.zeros((output.shape[0], num_tokens_target - num_tokens_out, token_dim_out))
             output = jnp.concatenate([output, padding], axis=1)
-        
-        if hidden_dim != target_hidden_dim:
-            raise ValueError(f"Hidden dimensions do not match for {name}: {hidden_dim} != {target_hidden_dim}")
-        
         loss += jnp.mean((output - target) ** 2)
     
     return loss / len(outputs)
