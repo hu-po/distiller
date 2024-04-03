@@ -190,7 +190,15 @@ for name, (num_tokens, token_dim) in distill_targets.items():
 
 def model_head(x, head_params, num_tokens, token_dim):
     x = nn.relu(x @ head_params)
-    x = x.reshape(x.shape[0], num_tokens, token_dim)
+    batch_size = x.shape[0]
+    x = x.reshape(batch_size, -1, token_dim)  # Reshape to (batch_size, num_tokens, token_dim)
+    if x.shape[1] != num_tokens:
+        # Adjust the number of tokens if there is a mismatch
+        if x.shape[1] > num_tokens:
+            x = x[:, :num_tokens, :]
+        else:
+            padding = jnp.zeros((batch_size, num_tokens - x.shape[1], token_dim))
+            x = jnp.concatenate([x, padding], axis=1)
     return x
 
 def model(x, params):
@@ -280,8 +288,8 @@ if args.save_ckpt:
     # TODO
 
 # Save plot of training and test accuracy for VLMs to analyze
-plt.plot(range(epoch), hist_loss_train, label="train")
-plt.plot(range(epoch), hist_loss_test, label="test")
+plt.plot(range(len(hist_loss_train)), hist_loss_train, label="train")
+plt.plot(range(len(hist_loss_test)), hist_loss_test, label="test")
 plt.xlabel("epoch")
 plt.ylabel("loss")
 plt.legend()

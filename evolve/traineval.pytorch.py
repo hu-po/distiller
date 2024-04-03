@@ -94,7 +94,7 @@ assert (
     model_size < args.max_model_size
 ), f"Model size {model_size} exceeds limit {args.max_model_size}"
 print(f"Model size: {model_size / 1e6}M")
-hparams["model_size"] = (sum(p.numel() for p in model.parameters()),)
+hparams["model_size"] = sum(p.numel() for p in model.parameters())
 
 # ---- Dataset
 
@@ -305,8 +305,8 @@ if args.save_ckpt:
     torch.save(model.state_dict(), model_save_path)
 
 # Save plot of training and test accuracy for VLMs to analyze
-plt.plot(range(epoch), hist_loss_train, label="train")
-plt.plot(range(epoch), hist_loss_test, label="test")
+plt.plot(range(len(hist_loss_train)), hist_loss_train, label="train")
+plt.plot(range(len(hist_loss_test)), hist_loss_test, label="test")
 plt.xlabel("epoch")
 plt.ylabel("loss")
 plt.legend()

@@ -1,6 +1,6 @@
 export DATA_PATH="/home/oop/dev/data"
-export CKPT_PATH="/home/oop/dev/data/test_model/ckpt"
-export LOGS_PATH="/home/oop/dev/data/test_model/logs"
+export CKPT_PATH="/home/oop/dev/data/test.traineval.jax/ckpt"
+export LOGS_PATH="/home/oop/dev/data/test.traineval.jax/logs"
 export MODEL_PATH="/home/oop/dev/distiller/evolve/models/jax/cnn.py"
 # image dataset should be inside data path
 export TRAIN_IMAGE_DIR="sdxl_imagenet_8/train"
