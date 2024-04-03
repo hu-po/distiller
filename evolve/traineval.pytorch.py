@@ -1,18 +1,19 @@
 import argparse
-import time
 import os
+import time
+
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms
+from tqdm import tqdm
 import yaml
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=42)

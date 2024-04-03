@@ -8,6 +8,7 @@ RUN pip install \
     matplotlib \
     numpy \
     tensorboardX \
+    pandas \
     tqdm
 RUN mkdir /data
 RUN mkdir /ckpt

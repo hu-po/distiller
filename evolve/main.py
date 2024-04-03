@@ -2,17 +2,17 @@ import argparse
 import base64
 import glob
 import os
-import requests
 import random
+import requests
 import shutil
 import subprocess
 import time
 import uuid
 import yaml
 
-import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
+import matplotlib.pyplot as plt
 
 # from llms import *
 

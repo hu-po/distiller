@@ -1,21 +1,19 @@
 import argparse
-import time
 import itertools
 import os
-import tqdm
+import time
 
-import jax
-import jax.numpy as jnp
-from jax import nn, random
-import pandas as pd
 from PIL import Image
-
-from jax import jit, grad, random
+import jax
+from jax import grad, jit, nn, random
 from jax.example_libraries import optimizers
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
+import pandas as pd
+import tqdm
 from tensorboardX import SummaryWriter
+import yaml
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--seed", type=int, default=42)
@@ -214,7 +212,7 @@ def distillation_loss(params, batch):
         target = targets[name]
         num_tokens_out, token_dim_out = output.shape[1], output.shape[2]
         num_tokens_target, token_dim_target = target.shape[1], target.shape[2]
-        assert token_dim_out == token_dim_target, f"Hidden dimensions do not match for {name}: {token_dim_out} != {token_dim_target}")
+        assert token_dim_out == token_dim_target, f"Hidden dimensions do not match for {name}: {token_dim_out} != {token_dim_target}"
         if num_tokens_out > num_tokens_target:
             output = output[:, :num_tokens_target, :]
         elif num_tokens_out < num_tokens_target:
