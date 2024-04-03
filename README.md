@@ -3,16 +3,13 @@
 Distilled Image Encoder via Generative Evolutionary Code Search using LLM Ensemble
 
 `/embed` - Use pre-trained image encoders to encode a directory of images into sequences of image tokens.
-`/evolve` - Generative code evolution to search for the best image encoder.
-
-
-## Evolve
+`/evolve` - Generative code evolution to search for the best image encoder
 
 ```
 conda create -n distiller python=3.10
 conda activate distiller
 pip install -r requirements.txt
-python main.py
+python run.py
 ```
 
 ## Citation

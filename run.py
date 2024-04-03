@@ -64,10 +64,10 @@ print(f"ckpt directory at {ckpt_dir}")
 data_dir = args.data_dir
 assert os.path.exists(data_dir), f"Data directory {data_dir} does not exist"
 
-# Spin up a Tensorboard instance to monitor training
-os.system("pkill -f 'tensorboard'")
-tb_proc = subprocess.Popen(["tensorboard", f"--logdir={logs_dir}"])
-tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
+# # Spin up a Tensorboard instance to monitor training
+# os.system("pkill -f 'tensorboard'")
+# tb_proc = subprocess.Popen(["tensorboard", f"--logdir={logs_dir}"])
+# tb_chrome_proc = subprocess.Popen(["/usr/bin/google-chrome", "http://localhost:6006/"])
 
 # Build and update the docker container for evolution
 build_docker_proc = subprocess.Popen(
@@ -154,10 +154,10 @@ Do not explain return only the code.""",
             print(f"Skipping {model} as it has already been evaluated")
             best_scores[model] = previous_results[model]["test_accuracy"]
             continue
-        print(f"Running {args.framework} traineval for {model}")
+        print(f"Running {args.framework} train for {model}")
         model_filepath = os.path.join(model_dir, f"{model}.py")
         os.system("docker kill $(docker ps -aq) && docker rm $(docker ps -aq)")
-        traineval_docker_proc = subprocess.Popen(
+        train_docker_proc = subprocess.Popen(
             [
                 "docker",
                 "run",
@@ -173,7 +173,7 @@ Do not explain return only the code.""",
                 f"{data_dir}:/data",
                 f"evolve.{args.framework}",
                 "python",
-                f"/src/traineval.{args.framework}.py",
+                f"/src/train.{args.framework}.py",
                 f"--seed={args.seed}",
                 f"--run_name={model}",
                 f"--round={round}",
@@ -196,8 +196,8 @@ Do not explain return only the code.""",
                 f"--b2={args.b2}",
             ]
         )
-        traineval_docker_proc.wait()
-        if traineval_docker_proc.returncode != 0:
+        train_docker_proc.wait()
+        if train_docker_proc.returncode != 0:
             print(f"Error occurred when training model {model}")
             best_scores[model] = 0.0
         else:

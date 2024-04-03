@@ -15,4 +15,4 @@ RUN mkdir /ckpt
 RUN mkdir /logs
 RUN mkdir /src
 WORKDIR /src
-COPY traineval.jax.py /src/traineval.jax.py
+COPY train.jax.py /src/train.jax.py

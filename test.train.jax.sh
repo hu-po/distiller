@@ -1,13 +1,13 @@
 export DATA_PATH="/home/oop/dev/data"
-export CKPT_PATH="/home/oop/dev/data/test.traineval.pytorch/ckpt"
-export LOGS_PATH="/home/oop/dev/data/test.traineval.pytorch/logs"
-export MODEL_PATH="/home/oop/dev/distiller/evolve/models/pytorch/cnn.py"
+export CKPT_PATH="/home/oop/dev/data/test.train.jax/ckpt"
+export LOGS_PATH="/home/oop/dev/data/test.train.jax/logs"
+export MODEL_PATH="/home/oop/dev/distiller/evolve/models/jax/cnn.py"
 # image dataset should be inside data path
 export TRAIN_IMAGE_DIR="sdxl_imagenet_8/train"
 export TEST_IMAGE_DIR="sdxl_imagenet_8/test"
 docker build \
-     -t "evolve.pytorch" \
-     -f Dockerfile.pytorch .
+     -t "evolve.jax" \
+     -f Dockerfile.jax .
 docker run \
     -it \
     --rm \
@@ -17,8 +17,8 @@ docker run \
     -v ${CKPT_PATH}:/ckpt \
     -v ${LOGS_PATH}:/logs \
     -v ${MODEL_PATH}:/src/model.py \
-    evolve.pytorch \
-    python /src/traineval.pytorch.py \
+    evolve.jax \
+    python /src/train.jax.py \
     --run_name=test \
     --round=0 \
     --train_data_dir=$TRAIN_IMAGE_DIR \

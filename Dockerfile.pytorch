@@ -20,4 +20,4 @@ RUN mkdir /ckpt
 RUN mkdir /logs
 RUN mkdir /src
 WORKDIR /src
-COPY traineval.pytorch.py /src/traineval.pytorch.py
+COPY train.pytorch.py /src/train.pytorch.py
