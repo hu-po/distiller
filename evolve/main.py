@@ -14,17 +14,36 @@ from io import BytesIO
 from PIL import Image
 import matplotlib.pyplot as plt
 
-# from llms import *
+# TODO: ensembles
+from llms.api_openai import text as llm
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--seed", type=int, default=0)
 parser.add_argument("--base_dir", type=str, default="/home/oop/dev/data/")
 parser.add_argument("--data_dir", type=str, default="/home/oop/dev/data/")
-# parser.add_argument("--framework", type=str, default="pytorch")
 parser.add_argument("--framework", type=str, default="jax")
 parser.add_argument("--num_models", type=int, default=2)
 parser.add_argument("--num_rounds", type=int, default=2)
 parser.add_argument("--cull_ratio", type=int, default=4)
+
+parser.add_argument("--seed", type=int, default=0)
+parser.add_argument("--save_ckpt", type=bool, default=False)
+parser.add_argument("--train_data_dir", type=str, default="sdxl_imagenet_8/train")
+parser.add_argument("--test_data_dir", type=str, default="sdxl_imagenet_8/test")
+parser.add_argument("--img_size", type=int, default=224)
+parser.add_argument("--train_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--train_img_std", type=str, default="0.207305,0.191163,0.185902")
+parser.add_argument("--test_img_mu", type=str, default="0.558373,0.519655,0.478256")
+parser.add_argument("--test_img_std", type=str, default="0.207305,0.191163,0.185902")
+parser.add_argument("--num_epochs", type=int, default=2)
+parser.add_argument("--batch_size", type=int, default=2)
+parser.add_argument("--early_stop", type=int, default=2)
+parser.add_argument("--max_model_size", type=int, default=1e8)
+parser.add_argument("--num_tokens", type=int, default=8)
+parser.add_argument("--token_dim", type=int, default=16)
+parser.add_argument("--learning_rate", type=float, default=1e-3)
+parser.add_argument("--b1", type=float, default=0.9)
+parser.add_argument("--b2", type=float, default=0.95)
+
 args = parser.parse_args()
 
 print("🧙‍♂️ Starting Evolution")
@@ -91,20 +110,18 @@ for round in range(args.num_rounds):
         run_id = f"{parents[0][:2]}_{parents[1][:2]}_{run_id}"
         # zero-shot
         system_prompt = f"""
-You are a expert machine learning research engineer.
-You excel at creating new and unique model architectures.
-You use {args.framework} and make use of the einops library.
+You are a expert machine learning research engineer specializing in {args.framework}.
+You are tasked with creating a new model architecture for image encoding.
 You will be given several example blocks of code.
 Create a new block of code inspired by the given blocks.
-The block of code should be called `Block` and should be a subclass of `nn.Module`.
-Make sure the kwarg `num_classes` is present in the `__init__` method.
+Follow any naming conventions in the given blocks and ensure the args and kwargs are the same.
 Do not explain, return only the working code which will be written directly to a .py file."""
         user_prompt = ""
         for parent in parents:
             parent_filepath = os.path.join(model_dir, f"{parent}.py")
             with open(parent_filepath, "r") as f:
                 user_prompt += f"\n{f.read()}"
-        reply = llm(system_prompt, user_prompt, 0.9, 512)
+        reply = llm(system_prompt + user_prompt)
         reply = llm(
             """
 You are an expert debugging machine.
@@ -113,8 +130,6 @@ Return the user provided code with any mistakes removed.
 Remove any comments.
 Do not explain return only the code.""",
             reply,
-            0.7,
-            512,
         )
         run_filename = f"{run_id}.py"
         run_filepath = os.path.join(model_dir, run_filename)
@@ -159,11 +174,26 @@ Do not explain return only the code.""",
                 f"evolve.{args.framework}",
                 "python",
                 f"/src/traineval.{args.framework}.py",
+                f"--seed={args.seed}",
                 f"--run_name={model}",
                 f"--round={round}",
-                f"--num_epochs={1}",
-                f"--batch_size={1}",
-                f"--early_stop={1}",
+                f"--save_ckpt={args.save_ckpt}",
+                f"--train_data_dir={args.train_data_dir}",
+                f"--test_data_dir={args.test_data_dir}",
+                f"--img_size={args.img_size}",
+                f"--train_img_mu={args.train_img_mu}",
+                f"--train_img_std={args.train_img_std}",
+                f"--test_img_mu={args.test_img_mu}",
+                f"--test_img_std={args.test_img_std}",
+                f"--num_epochs={args.num_epochs}",
+                f"--batch_size={args.batch_size}",
+                f"--early_stop={args.early_stop}",
+                f"--max_model_size={args.max_model_size}",
+                f"--num_tokens={args.num_tokens}",
+                f"--token_dim={args.token_dim}",
+                f"--learning_rate={args.learning_rate}",
+                f"--b1={args.b1}",
+                f"--b2={args.b2}",
             ]
         )
         traineval_docker_proc.wait()

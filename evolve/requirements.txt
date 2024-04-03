@@ -1,0 +1,8 @@
+google-generativeai
+openai
+anthropic
+pillow
+replicate
+tensorboardX
+matplotlib
+tensorboard
