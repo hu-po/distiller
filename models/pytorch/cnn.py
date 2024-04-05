@@ -8,9 +8,9 @@ The output is a sequence of image tokens of dimension [batch_size, num_tokens, t
 import torch.nn as nn
 from einops.layers.torch import Rearrange
 
-class Block(nn.Module):
+class Model(nn.Module):
     def __init__(self, img_size, num_tokens, token_dim):
-        super(Block, self).__init__()
+        super(Model, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
@@ -31,7 +31,9 @@ class Block(nn.Module):
         )
 
     def forward(self, x):
+        # x has shape [batch_size, H, W, C]
         x = self.conv(x)
         x = self.flatten(x)
         x = self.layers(x)
+        # output has shape [batch_size, num_tokens, token_dim]
         return x

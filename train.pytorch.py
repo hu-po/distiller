@@ -68,13 +68,13 @@ torch.cuda.manual_seed(args.seed)
 
 # when running in the docker container the model will be in /src/model.py
 if os.path.exists("/src/model.py"):
-    from model import Block
+    from model import Model
 else:
     # for local testing use hardcoded path
-    from evolve.models.pytorch.mlp import Block
+    from models.pytorch.mlp import Model
 
 # verify output shape
-model = Block(args.img_size, args.num_tokens, args.token_dim).to(device)
+model = Model(args.img_size, args.num_tokens, args.token_dim).to(device)
 for param in model.parameters():
     assert param.sum() != 0, "Model parameter(s) not initialized properly."
 mock_img = torch.randn(args.batch_size, 3, args.img_size, args.img_size).to(device)
@@ -179,7 +179,7 @@ assert len(test_dataset) > 0, "Testing dataset is empty."
 class FullModel(nn.Module):
     def __init__(self, distill_targets):
         super(FullModel, self).__init__()
-        self.backbone = Block(args.img_size, args.num_tokens, args.token_dim)
+        self.backbone = Model(args.img_size, args.num_tokens, args.token_dim)
         self.heads = nn.ModuleDict()
         self.head_configs = {}  # Store configurations for later use in the forward method
         

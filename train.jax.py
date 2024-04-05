@@ -62,14 +62,14 @@ rng = random.PRNGKey(args.seed)
 
 # when running in the docker container the model will be in /src/model.py
 if os.path.exists("/src/model.py"):
-    from model import make_encoder
+    from model import make_model
 else:
     # for local testing use hardcoded path
-    from evolve.models.jax.cnn import make_encoder
+    from models.jax.cnn import make_model
 
 # verify output shape
 mock_img = jnp.zeros((args.batch_size, args.img_size, args.img_size, 3))
-init_params, predict = make_encoder(args.num_tokens, args.token_dim)
+init_params, predict = make_model(args.num_tokens, args.token_dim)
 params = init_params(rng, args.img_size)
 output = predict(mock_img, params)
 assert output.shape == (args.batch_size, args.num_tokens, args.token_dim), f"Invalid output shape: {output.shape}"
@@ -174,7 +174,7 @@ batches = data_stream(rng)
 
 # ---- Full Model w/ Heads
 
-init_params, predict = make_encoder(args.num_tokens, args.token_dim)
+init_params, predict = make_model(args.num_tokens, args.token_dim)
 params = {"encoder": init_params(rng, args.img_size)}
 
 params["heads"] = {}
