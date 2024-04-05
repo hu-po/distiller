@@ -75,8 +75,6 @@ else:
 
 # verify output shape
 model = Model(args.img_size, args.num_tokens, args.token_dim).to(device)
-for param in model.parameters():
-    assert param.sum() != 0, "Model parameter(s) not initialized properly."
 mock_img = torch.randn(args.batch_size, 3, args.img_size, args.img_size).to(device)
 assert model(mock_img).shape == torch.Size(
     [args.batch_size, args.num_tokens, args.token_dim]), f"Invalid model output shape: {model(mock_img).shape}"

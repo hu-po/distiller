@@ -1,7 +1,10 @@
 export DATA_PATH="/home/oop/dev/data"
 export CKPT_PATH="/home/oop/dev/data/test.train.pytorch/ckpt"
 export LOGS_PATH="/home/oop/dev/data/test.train.pytorch/logs"
-export MODEL_PATH="/home/oop/dev/distiller/models/pytorch/cnn.py"
+# export MODEL_PATH="/home/oop/dev/distiller/models/pytorch/mlp.py"
+# export MODEL_PATH="/home/oop/dev/distiller/models/pytorch/cnn.py"
+# export MODEL_PATH="/home/oop/dev/distiller/models/pytorch/ssm.py"
+export MODEL_PATH="/home/oop/dev/distiller/models/pytorch/vit.py"
 # image dataset should be inside data path
 export TRAIN_IMAGE_DIR="sdxl_imagenet_8/train"
 export TEST_IMAGE_DIR="sdxl_imagenet_8/test"

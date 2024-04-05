@@ -31,7 +31,7 @@ class Model(nn.Module):
         )
 
     def forward(self, x):
-        # x has shape [batch_size, H, W, C]
+        # x has shape [batch_size, C, H, W]
         x = self.conv(x)
         x = self.flatten(x)
         x = self.layers(x)
