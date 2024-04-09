@@ -4,6 +4,7 @@ import os
 import time
 
 from PIL import Image
+from flax import linen as flnn
 import jax
 from jax import grad, jit, nn, random
 from jax.example_libraries import optimizers
@@ -182,6 +183,7 @@ for name, (num_tokens, token_dim) in distill_targets.items():
     params["heads"][name] = random.normal(rng, (args.token_dim, num_tokens * token_dim))
 
 def model_head(x, head_params, num_tokens, token_dim):
+    x = flnn.LayerNorm()(x)
     x = nn.relu(x @ head_params)
     batch_size = x.shape[0]
     x = x.reshape(batch_size, -1, token_dim)  # Reshape to (batch_size, num_tokens, token_dim)

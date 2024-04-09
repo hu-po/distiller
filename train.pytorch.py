@@ -180,6 +180,7 @@ class FullModel(nn.Module):
         self.backbone = Model(args.img_size, args.num_tokens, args.token_dim)
         self.heads = nn.ModuleDict()
         self.head_configs = {}  # Store configurations for later use in the forward method
+        self.layer_norm = nn.LayerNorm(args.num_tokens * args.token_dim)
         
         for name, (seq_len, hidden_dim) in distill_targets.items():
             # Create individual layers and add them to the ModuleDict
@@ -193,6 +194,7 @@ class FullModel(nn.Module):
         outputs = {}
         x = self.backbone(x)
         x = x.view(x.size(0), -1)  # Reshape the output of the backbone
+        x = self.layer_norm(x)
         for name, (seq_len, hidden_dim) in self.head_configs.items():
             # Directly apply each layer in the sequence
             y = self.heads[f"{name}_lin1"](x)
